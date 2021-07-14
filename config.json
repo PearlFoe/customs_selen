@@ -1,1 +1,4 @@
-{"START_URL":"https://belarusborder.by/"}
+{
+    "URL":"https://belarusborder.by/",
+    "LOGIN_URL": "https://belarusborder.by/login"
+}

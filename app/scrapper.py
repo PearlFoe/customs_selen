@@ -18,9 +18,10 @@ import os
 
 class Scrapper(object):
 	"""docstring for Scrapper"""
-	def __init__(self, url=None):
+	def __init__(self):
 		self.driver = None
-		self.start_url = config['START_URL']
+		self.url = config['URL']
+		self.login_url = config['LOGIN_URL'] 
 
 	def create_driver(self):
 		driver = None
@@ -36,35 +37,30 @@ class Scrapper(object):
 			logger.debug('Driver was created successfully.')
 			self.driver = driver
 
-	def open_start_url(self):
+	def open_url(self, url):
 		try:
-			self.driver.get(self.start_url)
+			self.driver.get(url)
 		except Exception:
-			logger.error('An error occured trying to open start url.')
-		else:
-			logger.debug('Start url opened successfully.')
-
-	def login(self, account):
-		driver = self.driver
-
-		login_btn = None
-		try:
-			login_btn = WebDriverWait(driver, 15).until(EC.presence_of_element_located(
-													(By.XPATH, '//li[@class="nav-item"]/a[@class="nav-link p-2"]/button[@data-toggle="modal"]')))
-		except TimeoutException:
-			logger.warning('Login button was not found in time.')
+			#logger.error(f'An error occured trying to open url {url}.')
 			raise
 		else:
-			driver.execute_script("arguments[0].click();", login_btn)
+			#logger.debug(f'Url {url} opened successfully.')
+			pass
+
+	def login(self, account):
+		try:
+			self.open_url(self.login_url + '/cabinet/bookings')
+		except Exception:
+			logger.error('An error occured trying to open login url.')
 
 		user_name_filed = None
 		password_filed = None
 		submit_btn = None
 		try:
-			user_name_filed = WebDriverWait(driver, 15).until(EC.presence_of_element_located(
-													(By.XPATH, '//input[@name="username"]')))
-			password_filed = driver.find_element_by_xpath('//input[@name="password"]')
-			submit_btn = driver.find_element_by_xpath('//button[@class="login100-form-btn"]')
+			user_name_filed = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+													(By.XPATH, '//input[@id="l_username"]')))
+			password_filed = self.driver.find_element_by_xpath('//input[@id="password"]')
+			submit_btn = self.driver.find_element_by_xpath('//button[@id="loginBtn"]')
 		except TimeoutException:
 			logger.warning('Log in field was not found in time.')
 			raise
@@ -82,8 +78,9 @@ class Scrapper(object):
 		#add check for banned accounts
 
 		logger.info('Successfully logged into account.')
+		time.sleep(1)
 
-	def book_datetime(self, d, t):
+	def order_datetime(self, d, t, reg_number, brand, model, country):
 		assert d and t
 
 		def click_next(driver):
@@ -93,55 +90,157 @@ class Scrapper(object):
 		time.sleep(3)
 
 		try:
-			self.driver.get(urljoin(self.start_url, '/book'))
+			self.open_url(urljoin(self.url, '/book'))
 		except Exception:
 			logger.error('An error occured trying to open booking url.')
 		else:
 			logger.debug('Booking url opened successfully.')
 
-		driver = self.driver
 		transport_category = None
+		transport_category = 1
+		'''
+		category:
+		1 - легковой автомобиль
+		2 - грузовой автомобиль
+		3 - автобус
+		4 - микроавтобус
+		5 - мотоцикл
+		'''
 		try:
-			transport_category = WebDriverWait(driver, 15).until(EC.presence_of_element_located(
-													(By.XPATH, '//div[@id="category"]/div')))
+			transport_category = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+													(By.XPATH, f'//div[@id="category"]/div[{transport_category}]')))
 		except TimeoutException:
 			logger.warning('Failed to find transport category button.')
 
 		try:
 			transport_category.click()
-			click_next(driver)
+			click_next(self.driver)
 		except Exception:
 			logger.warning('Failed to choose transport category.')
 
 		customs = None
+		customs_category = 1
+		'''
+		category:
+		1 - Брест
+		2 - Урбаны
+		3 - Брузги
+		4 - Котловка
+		5 - Григоровщина
+		'''
 		try:
-			customs = WebDriverWait(driver, 15).until(EC.presence_of_element_located(
-													(By.XPATH, '//div[@id="category"]/div')))
+			customs = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+													(By.XPATH, f'//div[@id="category"]/div[{customs_category}]')))
 		except TimeoutException:
 			logger.warning('Failed to find customs category button.')
 
 		try:
 			customs.click()
-			click_next(driver)
+			click_next(self.driver)
 		except Exception:
 			logger.warning('Failed to choose customs category.')
 
-		calendar = None
 		try:
-			calendar = WebDriverWait(driver, 15).until(EC.presence_of_element_located(
-													(By.XPATH, '//table[@class=" table"]')))
+			self.open_url(urljoin(self.url, f'/book/time?date={d}'))
+		except Exception:
+			logger.warning(f'Failed to choose date {d}.')
+
+		time_interval = None
+		try:
+			dt = d.replace('.','_') + '_' + t.split('-')[0]
+			time_interval = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+													(By.XPATH, f'//div[@data-interval="{dt}" and contains(@class, "intervalAvailable")]')))
 		except TimeoutException:
-			logger.warning('Failed to find calendar to choose date.')
+			logger.warning('Date and time are not available.')
 
-		day = None
 		try:
-			day = calendar.find_element_by_xpath(f'/tbody//td[@class="active day" OR @class="day"]/div[text()={d}]')
-		except NoSuchElementException:
-			logger.warning('Date is not available.')
+			time_interval.click()
+			click_next(self.driver)
+		except Exception:
+			logger.warning('Failed to choose date and time.')
 
-		_ = input('---')
-		
+		reg_number_field = None
+		brand_field = None
+		model_filed = None
+		country_filed = None
+		try:
+			reg_number_field = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+													(By.XPATH, f'//input[@name="vehicles[0].regnum"]')))
+			brand_field = self.driver.find_element_by_xpath('//div[@class="selectize-control autoBand single"]/div/input')
+			model_filed = self.driver.find_element_by_xpath('//input[@name="vehicles[0].model"]')
+			country_filed = self.driver.find_element_by_xpath('//div[@class="selectize-control autoCountry single"]/div/input')
+		except TimeoutException:
+			logger.warning('An error occured trying to find vehicle data fileds.')
 
+		try:
+			reg_number_field.clear()
+			reg_number_field.send_keys(reg_number)
+			brand_field.clear()
+			brand_field.send_keys(brand)
+			brand_field.send_keys(Keys.ENTER)
+			model_filed.clear()
+			model_filed.send_keys(model)
+			country_filed.clear()
+			country_filed.send_keys(country)
+			country_filed.send_keys(Keys.ENTER)
+
+			click_next(self.driver)
+		except Exception:
+			logger.warning('An error occured trying to input vehicle data.')
+
+		#get email block
+		try:
+			actions = ActionChains(self.driver)
+			checkbox = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+														(By.XPATH, f'//input[@id="agree"]')))
+			checkbox.click()
+
+			submit_btn = self.driver.find_elements_by_xpath('//button[@type="submit"]')[-1]
+			submit_btn.click()
+		except Exception:
+			logger.warning('Failed to confirm getting message on email.')
+
+		confirm_payment_btn = None
+		try:
+			confirm_payment_btn = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+														(By.XPATH, f'//button[@class="btn btn-outline-dark btn-lg next"]')))
+			confirm_payment_btn.click()
+		except TimeoutException:
+			logger.warning('Failed to confirm payment.')
+	
+	def cancel_order(self):
+		try:
+			self.open_url(urljoin(self.url, '/cabinet/bookings'))
+		except Exception:
+			logger.warning('An error occured trying to open url to cancel order.')
+
+		try:
+			_ = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+													(By.XPATH, f'//table[@id="myBookings"]')))
+		except TimeoutException:
+			logger.warning('Failed to load order in time.')
+
+		cancel_btn = None
+		try:
+			cancel_btn = self.driver.find_elements_by_xpath('//button[@class="btn btn-danger cancelOrder"]')[0]
+		except Exception:
+			logger.warning('Failed to find order cancel button.')
+
+		try:
+			cancel_btn.click()
+		except Exception:
+			logger.warning('Failed to click order cancel button.')
+
+
+		confirm_btn = None
+		try:
+			confirm_btn = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+													(By.XPATH, f'//button[@id="modal_yes"]')))
+			self.driver.execute_script("arguments[0].click();", confirm_btn)
+		except TimeoutException:
+			logger.warning('Failed to confirm order canceling.')
+		else:
+			logger.info('Order was canceled successfully.')
 
 	def close_driver(self):
 		try:
@@ -153,7 +252,6 @@ class Scrapper(object):
 
 	def run(self):
 		self.create_driver()
-		self.open_start_url()
 		while True:
 			try:
 				self.login(next(accounts))
@@ -161,5 +259,7 @@ class Scrapper(object):
 			except Exception:
 				pass
 
-		self.book_datetime(15, 2)
+		self.order_datetime('15.07.2021', '11-12', 'ek074mr', 'mazda', '3', 'RU')
+		time.sleep(3)
+		self.cancel_order()
 		self.close_driver()
