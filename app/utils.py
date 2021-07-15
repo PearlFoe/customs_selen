@@ -29,3 +29,12 @@ def get_accounts(file_name):
 					'username': account.split(':')[0],
 					'password':	account.split(':')[1]
 				}
+
+def get_proxy(file_name):
+	data = None
+	with open(file_name) as f:
+		data = f.read().split('\n')
+
+	for proxy in data:
+		if proxy:
+			yield proxy

@@ -1,4 +1,7 @@
 {
-    "URL":"https://belarusborder.by/",
-    "LOGIN_URL": "https://belarusborder.by/login"
+	"URL":"https://belarusborder.by/",
+	"LOGIN_URL": "https://belarusborder.by/login",
+	"TIME_OUT":5,
+	"THREADS_QUANTITY":2,
+	"HEADLESS_MODE":0   
 }

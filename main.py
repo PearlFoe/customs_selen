@@ -1,20 +1,22 @@
+from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures.thread
+
 from app import logger, config
-from app.scrapper import Scrapper
+from app.runner import Runner
 
 import subprocess
 import time
 import json
 import os
 
-
 @logger.catch
 def main():
-	global scrapper
-	scrapper = Scrapper()
-	scrapper.run()
+	global runner
+	runner = Runner()
+	runner.start()
 
 if __name__ == '__main__':
 	try:
 		main()
 	except KeyboardInterrupt:
-		scrapper.close_driver()
+		runner.stop()

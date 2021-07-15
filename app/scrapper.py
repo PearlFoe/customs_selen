@@ -11,10 +11,13 @@ from urllib.parse import urljoin
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from requests.exceptions import SSLError
 
-from app import logger, config, accounts
+from app import logger, config, accounts, proxies
 
 import time
+import threading
 import os
+
+lock = threading.RLock()
 
 class Scrapper(object):
 	"""docstring for Scrapper"""
@@ -23,14 +26,38 @@ class Scrapper(object):
 		self.url = config['URL']
 		self.login_url = config['LOGIN_URL'] 
 
+	def get_proxy(self):
+		lock.acquire()
+		proxy = None
+		try:
+			proxy = next(proxies)
+		finally:
+			lock.release()
+		return proxy
+
 	def create_driver(self):
 		driver = None
 
 		options = Options()
 		options.add_experimental_option('excludeSwitches', ['enable-logging']) #disables webdriver loggs
+		
+		if config['HEADLESS_MODE']:
+			options.add_argument("--headless")
+
+		proxy = self.get_proxy()
+
+		seleniumwire_options = {
+			'proxy': {
+				'http': f'http://{proxy}', 
+				'https': f'https://{proxy}',
+				'no_proxy': 'localhost,127.0.0.1'
+			}
+		}
+		driver = webdriver.Chrome('chromedriver.exe', service_log_path=os.path.devnull, options=options)#, seleniumwire_options=seleniumwire_options)
 
 		try:
-			driver = webdriver.Chrome('chromedriver.exe', service_log_path=os.path.devnull, options=options)
+			pass
+			#driver = webdriver.Chrome('chromedriver.exe', service_log_path=os.path.devnull, options=options)#, seleniumwire_options=seleniumwire_options)
 		except SSLError:
 			logger.error('An SSLError occured during driver creation.')
 		else:
@@ -93,6 +120,7 @@ class Scrapper(object):
 			self.open_url(urljoin(self.url, '/book'))
 		except Exception:
 			logger.error('An error occured trying to open booking url.')
+			raise
 		else:
 			logger.debug('Booking url opened successfully.')
 
@@ -111,12 +139,14 @@ class Scrapper(object):
 													(By.XPATH, f'//div[@id="category"]/div[{transport_category}]')))
 		except TimeoutException:
 			logger.warning('Failed to find transport category button.')
+			raise
 
 		try:
 			transport_category.click()
 			click_next(self.driver)
 		except Exception:
 			logger.warning('Failed to choose transport category.')
+			raise
 
 		customs = None
 		customs_category = 1
@@ -133,17 +163,20 @@ class Scrapper(object):
 													(By.XPATH, f'//div[@id="category"]/div[{customs_category}]')))
 		except TimeoutException:
 			logger.warning('Failed to find customs category button.')
+			raise
 
 		try:
 			customs.click()
 			click_next(self.driver)
 		except Exception:
 			logger.warning('Failed to choose customs category.')
+			raise
 
 		try:
 			self.open_url(urljoin(self.url, f'/book/time?date={d}'))
 		except Exception:
 			logger.warning(f'Failed to choose date {d}.')
+			raise
 
 		time_interval = None
 		try:
@@ -152,12 +185,14 @@ class Scrapper(object):
 													(By.XPATH, f'//div[@data-interval="{dt}" and contains(@class, "intervalAvailable")]')))
 		except TimeoutException:
 			logger.warning('Date and time are not available.')
+			raise
 
 		try:
 			time_interval.click()
 			click_next(self.driver)
 		except Exception:
 			logger.warning('Failed to choose date and time.')
+			raise
 
 		reg_number_field = None
 		brand_field = None
@@ -171,6 +206,7 @@ class Scrapper(object):
 			country_filed = self.driver.find_element_by_xpath('//div[@class="selectize-control autoCountry single"]/div/input')
 		except TimeoutException:
 			logger.warning('An error occured trying to find vehicle data fileds.')
+			raise
 
 		try:
 			reg_number_field.clear()
@@ -187,6 +223,7 @@ class Scrapper(object):
 			click_next(self.driver)
 		except Exception:
 			logger.warning('An error occured trying to input vehicle data.')
+			raise
 
 		#get email block
 		try:
@@ -199,6 +236,7 @@ class Scrapper(object):
 			submit_btn.click()
 		except Exception:
 			logger.warning('Failed to confirm getting message on email.')
+			raise
 
 		confirm_payment_btn = None
 		try:
@@ -207,29 +245,36 @@ class Scrapper(object):
 			confirm_payment_btn.click()
 		except TimeoutException:
 			logger.warning('Failed to confirm payment.')
+			raise
+		else:
+			logger.info('Order was made successfully.')
 	
 	def cancel_order(self):
 		try:
 			self.open_url(urljoin(self.url, '/cabinet/bookings'))
 		except Exception:
 			logger.warning('An error occured trying to open url to cancel order.')
+			raise
 
 		try:
 			_ = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
 													(By.XPATH, f'//table[@id="myBookings"]')))
 		except TimeoutException:
 			logger.warning('Failed to load order in time.')
+			raise
 
 		cancel_btn = None
 		try:
 			cancel_btn = self.driver.find_elements_by_xpath('//button[@class="btn btn-danger cancelOrder"]')[0]
 		except Exception:
 			logger.warning('Failed to find order cancel button.')
+			raise
 
 		try:
 			cancel_btn.click()
 		except Exception:
 			logger.warning('Failed to click order cancel button.')
+			raise
 
 
 		confirm_btn = None
@@ -239,6 +284,7 @@ class Scrapper(object):
 			self.driver.execute_script("arguments[0].click();", confirm_btn)
 		except TimeoutException:
 			logger.warning('Failed to confirm order canceling.')
+			raise
 		else:
 			logger.info('Order was canceled successfully.')
 
@@ -256,10 +302,16 @@ class Scrapper(object):
 			try:
 				self.login(next(accounts))
 				break
-			except Exception:
-				pass
+			except StopIteration:
+				logger.warning('Got end of the accounts list.')
+				self.close_driver()
+				return
+		try:
+			self.order_datetime('20.07.2021', '11-12', 'ek074mr', 'mazda', '3', 'RU')
+		except Exception:
+			self.close_driver()
+			return
 
-		self.order_datetime('15.07.2021', '11-12', 'ek074mr', 'mazda', '3', 'RU')
 		time.sleep(3)
 		self.cancel_order()
 		self.close_driver()
