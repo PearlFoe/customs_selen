@@ -12,8 +12,10 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from requests.exceptions import SSLError
 
 from app import logger, config, accounts, proxies
+from app.notifier import TelegramNotifier
 
 import time
+import datetime
 import threading
 import os
 
@@ -24,7 +26,8 @@ class Scrapper(object):
 	def __init__(self):
 		self.driver = None
 		self.url = config['URL']
-		self.login_url = config['LOGIN_URL'] 
+		self.login_url = config['LOGIN_URL']
+		self.notifier = TelegramNotifier()
 
 	def get_proxy(self):
 		lock.acquire()
@@ -304,6 +307,8 @@ class Scrapper(object):
 				break
 			except StopIteration:
 				logger.warning('Got end of the accounts list.')
+				dt = datetime.datetime.now()
+				self.notifier.send_message(f'{str(dt)} Got the end of accounts list.')
 				self.close_driver()
 				return
 		try:
