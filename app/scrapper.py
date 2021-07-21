@@ -38,6 +38,15 @@ class Scrapper(object):
 			lock.release()
 		return proxy
 
+	def get_account(self):
+		lock.acquire()
+		account = None
+		try:
+			account = next(accounts)
+		finally:
+			lock.release()
+		return account
+
 	def create_driver(self):
 		driver = None
 
@@ -78,6 +87,9 @@ class Scrapper(object):
 			pass
 
 	def login(self, account):
+		username = account['username']
+		password = account['password']
+
 		try:
 			self.open_url(self.login_url + '/cabinet/bookings')
 		except Exception:
@@ -96,19 +108,22 @@ class Scrapper(object):
 			raise
 
 		try:
-			user_name_filed.send_keys(account['username'])
-			password_filed.send_keys(account['password'])
+			user_name_filed.send_keys(username)
+			password_filed.send_keys(password)
 			submit_btn.click()
 		except Exception:
-			username = account['username']
-			password = account['password']
 			logger.warning(f'An error occured trying to enter log in data {username}:{password}.')
 			raise
 
 		#add check for banned accounts
-
-		logger.info('Successfully logged into account.')
-		time.sleep(1)
+		try:
+			_ = WebDriverWait(self.driver, 3).until(EC.presence_of_element_located(
+													(By.XPATH, '//li[@id="liLogin"]')))
+		except TimeoutException:
+			logger.warning(f'Account {username}:{password} is banned.')
+			raise
+		else:
+			logger.info('Successfully logged into account.')
 
 	def order_datetime(self, d, t, reg_number, brand, model, country):
 		assert d and t
@@ -303,16 +318,21 @@ class Scrapper(object):
 		self.create_driver()
 		while True:
 			try:
-				self.login(next(accounts))
+				account = self.get_account()
+				self.login(account)
 				break
 			except StopIteration:
 				logger.warning('Got end of the accounts list.')
-				dt = datetime.datetime.now()
-				self.notifier.send_message(f'{str(dt)} Got the end of accounts list.')
+				#dt = datetime.datetime.now()
+				#self.notifier.send_message(f'{str(dt)} Got the end of accounts list.')
 				self.close_driver()
 				return
+			except (TimeoutException, NoSuchElementException) as e:
+				dt = datetime.datetime.now()
+				self.notifier.send_message(f'{str(dt)} Got an error trying to login.')
+
 		try:
-			self.order_datetime('20.07.2021', '11-12', 'ek074mr', 'mazda', '3', 'RU')
+			self.order_datetime('26.07.2021', '11-12', 'ek074mr', 'mazda', '3', 'RU')
 		except Exception:
 			self.close_driver()
 			return
