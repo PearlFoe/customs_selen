@@ -1,22 +1,21 @@
-from concurrent.futures import ThreadPoolExecutor
-import concurrent.futures.thread
-
 from app import logger, config
 from app.runner import Runner
-
-import subprocess
-import time
-import json
-import os
+from app.UI import Vier
 
 @logger.catch
 def main():
 	global runner
+	global vier
+
 	runner = Runner()
-	runner.start()
+	vier = Vier(runner=runner)
+	vier.run()
 
 if __name__ == '__main__':
 	try:
 		main()
 	except KeyboardInterrupt:
 		runner.stop()
+		vier.quit()
+	finally:
+		vier.quit()

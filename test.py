@@ -1,7 +1,9 @@
 from app.UI import Vier
+from app.runner import Runner
 
 def main():
-	vier = Vier()
+	runner = Runner()
+	vier = Vier(runner=runner)
 	vier.run()
 
 if __name__ == '__main__':

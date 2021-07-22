@@ -2,7 +2,7 @@
 	"URL":"https://belarusborder.by/",
 	"LOGIN_URL": "https://belarusborder.by/login",
 	"TIME_OUT":5,
-	"THREADS_QUANTITY":2,
+	"THREADS_QUANTITY":1,
 	"HEADLESS_MODE":0,
 	"TELEGRAM_USER_TO_NOTIFY":659797592,
 	"TELEGRAM_BOT_TOKEN":"1886974430:AAHxNXC8TBGVFsWOKb3Sciqphqt5fOtYRxg"

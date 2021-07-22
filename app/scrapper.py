@@ -23,11 +23,12 @@ lock = threading.RLock()
 
 class Scrapper(object):
 	"""docstring for Scrapper"""
-	def __init__(self):
+	def __init__(self, order):
 		self.driver = None
 		self.url = config['URL']
 		self.login_url = config['LOGIN_URL']
 		self.notifier = TelegramNotifier()
+		self.order = order
 
 	def get_proxy(self):
 		lock.acquire()
@@ -318,8 +319,10 @@ class Scrapper(object):
 		self.create_driver()
 		while True:
 			try:
-				account = self.get_account()
-				self.login(account)
+				new_account = self.get_account()
+				self.order.update_login(new_account['username'])
+				input('--------')
+				self.login(new_account)
 				break
 			except StopIteration:
 				logger.warning('Got end of the accounts list.')
@@ -332,7 +335,14 @@ class Scrapper(object):
 				self.notifier.send_message(f'{str(dt)} Got an error trying to login.')
 
 		try:
-			self.order_datetime('26.07.2021', '11-12', 'ek074mr', 'mazda', '3', 'RU')
+			self.order_datetime(
+					self.order.date, 
+					self.order.time, 
+					self.order.reg_number, 
+					self.order.car_brand, 
+					self.order.car_model, 
+					self.order.region,
+					)
 		except Exception:
 			self.close_driver()
 			return
