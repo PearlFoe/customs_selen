@@ -13,10 +13,8 @@ class Runner(object):
 		self.scrapper = None
 		self.executor = None
 		self.scrapper = None
-
-		if self.threads_quantity > 1:
-			self.executor = ThreadPoolExecutor(max_workers=self.threads_quantity, thread_name_prefix='Tread')
-			self.scrapper = []
+		self.executor = ThreadPoolExecutor(max_workers=self.threads_quantity, thread_name_prefix='Tread')
+		self.scrapper = [] if self.threads_quantity > 1 else None
 
 	def run_scrapper(self, order):
 		scr = Scrapper(order=order)
@@ -24,17 +22,22 @@ class Runner(object):
 		scr.run()
 
 	def start(self):
+		if len(self.orders) < config['THREADS_QUANTITY']:
+	 		config['THREADS_QUANTITY'] = len(self.orders)
+
 		if self.threads_quantity > 1:
 			futures = []
 			for order in self.orders:
 				futures.append(self.executor.submit(self.run_scrapper, order))
-			
+			'''
 			for i in futures:
 				i.result()
+			'''
 		else:
+			futures = []
 			for order in self.orders:
 				self.scrapper = Scrapper(order=order)
-				self.scrapper.run()
+				futures.append(self.executor.submit(self.scrapper.run))
 
 	def stop(self):
 		if self.threads_quantity > 1:

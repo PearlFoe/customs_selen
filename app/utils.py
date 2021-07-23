@@ -38,3 +38,10 @@ def get_proxy(file_name):
 	for proxy in data:
 		if proxy:
 			yield proxy
+
+def get_order_data(file_name):
+	data = None
+	with open(file_name, encoding='utf-8') as f:
+		data = json.loads(f.read())
+
+	return data

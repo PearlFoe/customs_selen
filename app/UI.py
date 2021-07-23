@@ -2,8 +2,10 @@ from tkinter import *
 from tkinter.ttk import Frame, Combobox
 
 from app import logger, config, accounts
+from app.utils import get_order_data
 
 import os
+import threading
 
 class Vier():
 	"""docstring for Vier"""
@@ -49,10 +51,10 @@ class Vier():
 
 		btns_frame.pack(side=TOP)
 
-		self.window.mainloop()
+		threading.Thread(target=self.window.mainloop(), name='Thread_Vier_Main_Loop', daemon=True)
 
 	def quit(self):
-		self.window.destroy() 
+		self.window.quit() 
 
 class Header():
 	"""docstring for Header"""
@@ -91,6 +93,7 @@ class Order():
 		self.login = StringVar(value=login)
 		self.date = date
 		self.time = time
+		self.time_to_wait = StringVar(value=f"Time left:\n{config['TIME_OUT']}")
 		self.status = StringVar(value=status)
 		self.auto_type = auto_type
 		self.customs_type = customs_type
@@ -102,12 +105,14 @@ class Order():
 		self.__location = {
 				'login': 0,
 				'datetime': 1,
-				'status': 2,
+				'time_to_wait': 2,
+				'status': 3,
 		}
 
 	def create(self):
 		self.add_login()
 		self.add_datetime()
+		self.add_time_to_wait()
 		self.add_status()
 
 	def add_login(self):
@@ -119,6 +124,10 @@ class Order():
 		label = Label(self.window, text=text, font=("Arial Bold", 12))
 		label.grid(column=self.__location['datetime'], row=0, rowspan=2, sticky=W)
 
+	def add_time_to_wait(self):
+		label = Label(self.window, textvariable=self.time_to_wait, font=("Arial Bold", 12))
+		label.grid(column=self.__location['time_to_wait'], row=0, rowspan=1)
+
 	def add_status(self):
 		label = Label(self.window, textvariable=self.status, font=("Arial Bold", 12))
 		label.grid(column=self.__location['status'], row=0, rowspan=1)
@@ -128,6 +137,10 @@ class Order():
 
 	def update_status(self, new_status):
 		self.status.set(new_status)
+
+	def update_time_to_wait(self, time_left):
+		s = f"Time left:\n{time_left}"
+		self.time_to_wait.set(s)
 
 class InputForm():
 	"""docstring for InputForm"""
@@ -275,12 +288,23 @@ class InputForm():
 		self.runner.start()
 
 	def confirm_on_click(self):
-		data = self.get_data_from_input()
-		order = Order(
-			login='---', 
-			status='Waiting',
-			**data
-		)
+		if self._get_info_from_file:
+			input_data = self.get_data_from_input()
+			file_data = get_order_data('order_data.json')
+			order = Order(
+				login='---', 
+				status='Waiting',
+				date=input_data['date'],
+				time=input_data['time'],
+				**file_data
+			)
+		else:	
+			data = self.get_data_from_input()
+			order = Order(
+				login='---', 
+				status='Waiting',
+				**data
+			)
 		self.order_list.add_order(order)
 
 	def delete_on_click(self):

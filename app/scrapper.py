@@ -126,7 +126,7 @@ class Scrapper(object):
 		else:
 			logger.info('Successfully logged into account.')
 
-	def order_datetime(self, d, t, reg_number, brand, model, country):
+	def order_datetime(self, d, t, auto_type, customs_type, reg_number, brand, model, country):
 		assert d and t
 
 		def click_next(driver):
@@ -143,8 +143,14 @@ class Scrapper(object):
 		else:
 			logger.debug('Booking url opened successfully.')
 
-		transport_category = None
-		transport_category = 1
+		transport = None
+		transport_category = [
+			'Легковой автомобиль',
+			'Грузовой автомобиль',
+			'Автобус',
+			'Легковой/пассажирский микроавтобус',
+			'Мотоцикл'
+		]
 		'''
 		category:
 		1 - легковой автомобиль
@@ -154,21 +160,27 @@ class Scrapper(object):
 		5 - мотоцикл
 		'''
 		try:
-			transport_category = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
-													(By.XPATH, f'//div[@id="category"]/div[{transport_category}]')))
+			transport = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+													(By.XPATH, f'//div[@id="category"]/div[{transport_category.index(auto_type)+1}]')))
 		except TimeoutException:
 			logger.warning('Failed to find transport category button.')
 			raise
 
 		try:
-			transport_category.click()
+			transport.click()
 			click_next(self.driver)
 		except Exception:
 			logger.warning('Failed to choose transport category.')
 			raise
 
 		customs = None
-		customs_category = 1
+		customs_category = [
+			'Брест',
+			'Урбаны',
+			'Брузги',
+			'Котловка',
+			'Григоровщина'
+		]
 		'''
 		category:
 		1 - Брест
@@ -179,7 +191,7 @@ class Scrapper(object):
 		'''
 		try:
 			customs = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
-													(By.XPATH, f'//div[@id="category"]/div[{customs_category}]')))
+													(By.XPATH, f'//div[@id="category"]/div[{customs_category.index(customs_type)+1}]')))
 		except TimeoutException:
 			logger.warning('Failed to find customs category button.')
 			raise
@@ -267,7 +279,19 @@ class Scrapper(object):
 			raise
 		else:
 			logger.info('Order was made successfully.')
-	
+
+		#time out after making order
+		self.order.update_status('Ordered')
+
+		start_time = time.time()
+		while True:
+			if time.time() - start_time < config['TIME_OUT']:
+				time.sleep(1)
+				self.order.update_time_to_wait(int(config['TIME_OUT'] - (time.time() - start_time)))
+			else:
+				self.order.update_time_to_wait(0)
+				break
+		
 	def cancel_order(self):
 		try:
 			self.open_url(urljoin(self.url, '/cabinet/bookings'))
@@ -321,7 +345,7 @@ class Scrapper(object):
 			try:
 				new_account = self.get_account()
 				self.order.update_login(new_account['username'])
-				input('--------')
+				self.order.update_status('Logging in')
 				self.login(new_account)
 				break
 			except StopIteration:
@@ -333,19 +357,25 @@ class Scrapper(object):
 			except (TimeoutException, NoSuchElementException) as e:
 				dt = datetime.datetime.now()
 				self.notifier.send_message(f'{str(dt)} Got an error trying to login.')
+				self.order.update_status('Login failed')
 
+
+		self.order.update_status('Making order')
 		try:
 			self.order_datetime(
 					self.order.date, 
-					self.order.time, 
+					self.order.time,
+					self.order.auto_type,
+					self.order.customs_type,
 					self.order.reg_number, 
 					self.order.car_brand, 
 					self.order.car_model, 
 					self.order.region,
-					)
+			)
 		except Exception:
 			self.close_driver()
 			return
+
 
 		time.sleep(3)
 		self.cancel_order()

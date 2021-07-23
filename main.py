@@ -6,6 +6,7 @@ from app.UI import Vier
 def main():
 	global runner
 	global vier
+	#threading.Thread(target=self.runner.start(), name='Thread_Runner')
 
 	runner = Runner()
 	vier = Vier(runner=runner)
