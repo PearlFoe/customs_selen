@@ -27,8 +27,9 @@ class Scrapper(object):
 		self.driver = None
 		self.url = config['URL']
 		self.login_url = config['LOGIN_URL']
-		self.notifier = TelegramNotifier()
 		self.order = order
+		self.notifier = TelegramNotifier(login=self.order.login)
+
 
 	def get_proxy(self):
 		lock.acquire()
@@ -121,19 +122,30 @@ class Scrapper(object):
 			_ = WebDriverWait(self.driver, 3).until(EC.presence_of_element_located(
 													(By.XPATH, '//li[@id="liLogin"]')))
 		except TimeoutException:
-			logger.warning(f'Account {username}:{password} is banned.')
+			message = f'Account {username}:{password} is banned.'
+			logger.warning(message)
+			self.notifier.send_message(message)
 			raise
 		else:
 			logger.info('Successfully logged into account.')
 
-	def order_datetime(self, d, t, auto_type, customs_type, reg_number, brand, model, country):
-		assert d and t
+	def order_datetime(self, start_date, end_date, start_time, end_time, auto_type, customs_type, reg_number, brand, model, country):
 
 		def click_next(driver):
 			submit_btn = driver.find_element_by_xpath('//button[@id="next"]')
 			submit_btn.click()
 
+		def conver_date_to_str(date):
+			day = str(date.day) if date.day > 9 else f'0{date.day}'
+			month = str(date.month) if date.month > 9 else f'0{date.month}'
+			s_date = f'{day}.{month}.{date.year}'
+
+			return s_date
+
 		time.sleep(3)
+
+		start_date = datetime.datetime.strptime(start_date, '%d.%m.%Y')
+		end_date = datetime.datetime.strptime(end_date, '%d.%m.%Y')
 
 		try:
 			self.open_url(urljoin(self.url, '/book'))
@@ -203,20 +215,51 @@ class Scrapper(object):
 			logger.warning('Failed to choose customs category.')
 			raise
 
-		try:
-			self.open_url(urljoin(self.url, f'/book/time?date={d}'))
-		except Exception:
-			logger.warning(f'Failed to choose date {d}.')
-			raise
-
+		###############################
 		time_interval = None
-		try:
-			dt = d.replace('.','_') + '_' + t.split('-')[0]
-			time_interval = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
-													(By.XPATH, f'//div[@data-interval="{dt}" and contains(@class, "intervalAvailable")]')))
-		except TimeoutException:
-			logger.warning('Date and time are not available.')
-			raise
+		delta_days = end_date - start_date
+		delta_days = delta_days.days
+
+		t_intervals = ['00-01', '01-02', '02-03', '03-04', '04-05', 
+					'05-06', '06-07', '07-08', '08-09', '09-10', 
+					'10-11', '11-12', '12-13', '13-14', '14-15', 
+					'15-16', '16-17', '17-18', '18-19', '19-20', 
+					'20-21', '21-22', '22-23', '23-00']
+
+		for _ in range(delta_days+1):
+			d = conver_date_to_str(start_date)
+			try:
+				self.open_url(urljoin(self.url, f'/book/time?date={d}'))
+			except Exception:
+				logger.warning(f'Failed to choose date {d}.')
+				raise
+
+			try:
+				_ = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+															(By.XPATH, '//div[@class="currentDatePanel"]')))
+			except TimeoutException:
+				message = "Page haven't loaded in time. Unnable to choose time."
+				logger.warning(message)
+				self.notifier.send_message(message)
+
+
+			for t in t_intervals[t_intervals.index(start_time):t_intervals.index(end_time)+1]:
+				try:
+					dt = d.replace('.','_') + '_' + t.split('-')[0]
+					time_interval = self.driver.find_element_by_xpath(f'//div[@data-interval="{dt}" and contains(@class, "intervalAvailable")]')
+				except NoSuchElementException:
+					pass
+
+			start_date += datetime.timedelta(days=1)
+
+
+		if not time_interval:
+			message = "Date and time are not available."
+			logger.warning(message)
+			self.notifier.send_message(message)
+			raise NoSuchElementException
+
+		###############################
 
 		try:
 			time_interval.click()
@@ -350,21 +393,21 @@ class Scrapper(object):
 				break
 			except StopIteration:
 				logger.warning('Got end of the accounts list.')
-				#dt = datetime.datetime.now()
-				#self.notifier.send_message(f'{str(dt)} Got the end of accounts list.')
+				self.notifier.send_message('Got the end of accounts list.')
 				self.close_driver()
 				return
 			except (TimeoutException, NoSuchElementException) as e:
-				dt = datetime.datetime.now()
-				self.notifier.send_message(f'{str(dt)} Got an error trying to login.')
+				#self.notifier.send_message('Got an error trying to login.')
 				self.order.update_status('Login failed')
 
 
 		self.order.update_status('Making order')
 		try:
 			self.order_datetime(
-					self.order.date, 
-					self.order.time,
+					self.order.start_date, 
+					self.order.end_date, 
+					self.order.start_time,
+					self.order.end_time,
 					self.order.auto_type,
 					self.order.customs_type,
 					self.order.reg_number, 
@@ -375,7 +418,6 @@ class Scrapper(object):
 		except Exception:
 			self.close_driver()
 			return
-
 
 		time.sleep(3)
 		self.cancel_order()

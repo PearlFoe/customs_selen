@@ -22,8 +22,8 @@ class Runner(object):
 		scr.run()
 
 	def start(self):
-		if len(self.orders) < config['THREADS_QUANTITY']:
-	 		config['THREADS_QUANTITY'] = len(self.orders)
+		if len(self.orders) < self.threads_quantity:
+	 		self.threads_quantity = len(self.orders)
 
 		if self.threads_quantity > 1:
 			futures = []

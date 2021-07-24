@@ -11,7 +11,7 @@ class Vier():
 	"""docstring for Vier"""
 	def __init__(self, runner):
 		self.window = Tk()
-		self.window.geometry('550x500')
+		self.window.geometry('750x500')
 		self.runner = runner
 
 	def run(self):
@@ -29,9 +29,9 @@ class Vier():
 		order_list_frame = ScrollableFrame(container)
 		order_list = OrderList(order_list_frame.scrollable_frame)
 		
-		l_order_list_frame.pack(side=TOP)
-		container.pack(side=TOP)
-		order_list_frame.pack(side=LEFT)
+		l_order_list_frame.pack(side=TOP, expand=True, fill='x')
+		container.pack(side=TOP, expand=True, fill='x')
+		order_list_frame.pack(side=LEFT, expand=True, fill='x')
 		
 		###################################################
 		l_input_frame = LabelFrame(self.window)
@@ -87,12 +87,14 @@ class OrderList():
 			pass
 
 class Order():
-	def __init__(self, login, status, date, time, auto_type, customs_type, 
+	def __init__(self, login, status, start_date, end_date, start_time, end_time, auto_type, customs_type, 
 					reg_number, car_brand, car_model, region, window=None):
 		self.window = window
 		self.login = StringVar(value=login)
-		self.date = date
-		self.time = time
+		self.start_date = start_date
+		self.end_date = end_date
+		self.start_time = start_time
+		self.end_time = end_time
 		self.time_to_wait = StringVar(value=f"Time left:\n{config['TIME_OUT']}")
 		self.status = StringVar(value=status)
 		self.auto_type = auto_type
@@ -120,7 +122,7 @@ class Order():
 		label.grid(column=self.__location['login'], row=0, rowspan=1)
 
 	def add_datetime(self):
-		text = f'Date: {self.date}\nTime: {self.time}'
+		text = f'Date: {self.start_date} - {self.end_date}\nTime: {self.start_time} - {self.end_time}'
 		label = Label(self.window, text=text, font=("Arial Bold", 12))
 		label.grid(column=self.__location['datetime'], row=0, rowspan=2, sticky=W)
 
@@ -148,8 +150,10 @@ class InputForm():
 		self.window = window
 		self.runner = runner
 		self.order_list = order_list
-		self._date_input = None
-		self._time_input = None
+		self._start_date_input = None
+		self._end_date_input = None
+		self._start_time_input = None
+		self._end_time_input = None
 		self._auto_type_list = None
 		self._customs_type_list = None
 		self._reg_number_input = None
@@ -173,22 +177,54 @@ class InputForm():
 		self.add_confirm_btn(row=4, column=3)
 
 	def add_date_input(self):
-		date = StringVar()
-		date.set('01.01.2021')
+		start_date = StringVar()
+		start_date.set('01.01.2021')
+		end_date = StringVar()
+		end_date.set('02.01.2021')
+		'''
 		self._date_input = Entry(self.window, text=date, justify=LEFT)
 		label = Label(self.window, text='Date', font=("Arial Bold", 12))
 
 		label.grid(row=0, column=0, sticky=W)
 		self._date_input.grid(row=0, column=1, sticky=W)
+		'''
+
+		label = Label(self.window, text='Date', font=("Arial Bold", 12))
+		date_input_frame = Frame(self.window)
+
+		self._start_date_input = Entry(date_input_frame, text=start_date, justify=LEFT)
+		self._end_date_input = Entry(date_input_frame, text=end_date, justify=LEFT)
+
+		self._start_date_input.grid(row=0, column=0)
+		self._end_date_input.grid(row=0, column=1)
+
+		label.grid(row=0, column=0, sticky=W)
+		date_input_frame.grid(row=0, column=1, sticky=W)
 
 	def add_time_input(self):
-		time = StringVar()
-		time.set('00-01')
+		start_time = StringVar()
+		start_time.set('00-01')
+		end_time = StringVar()
+		end_time.set('01-02')
+		'''
 		self._time_input = Entry(self.window, text=time, justify=LEFT)
 		label = Label(self.window, text='Time', font=("Arial Bold", 12))
 
 		label.grid(row=0, column=2, sticky=W)
 		self._time_input.grid(row=0, column=3, sticky=W)
+		'''
+		label = Label(self.window, text='Time', font=("Arial Bold", 12))
+		time_input_frame = Frame(self.window)
+
+		self._start_time_input = Entry(time_input_frame, text=start_time, justify=LEFT)
+		self._end_time_input = Entry(time_input_frame, text=end_time, justify=LEFT)
+
+		self._start_time_input.grid(row=0, column=0)
+		self._end_time_input.grid(row=0, column=1)
+
+		label.grid(row=0, column=2, sticky=W)
+		time_input_frame.grid(row=0, column=3, sticky=W)
+
 
 	def add_transport_type_list(self):
 		items = [
@@ -199,10 +235,10 @@ class InputForm():
 			'Мотоцикл'
 		]
 
-		label = Label(self.window, text="Auto type", font=("Arial Bold", 12))
+		label = Label(self.window, text="Transport type", font=("Arial Bold", 12))
 		self._auto_type_list = Combobox(self.window, values=items)
 		label.grid(row=1, column=0, sticky=W)
-		self._auto_type_list.grid(row=1, column=1, sticky=W)
+		self._auto_type_list.grid(row=1, column=1, sticky=NSEW)
 		self._auto_type_list.current(0)
 
 	def add_customs_type_list(self):
@@ -217,7 +253,7 @@ class InputForm():
 		label = Label(self.window, text="Customs type", font=("Arial Bold", 12))
 		self._customs_type_list = Combobox(self.window, values=items)
 		label.grid(row=1, column=2, sticky=W)
-		self._customs_type_list.grid(row=1, column=3, sticky=W)
+		self._customs_type_list.grid(row=1, column=3, sticky=NSEW)
 		self._customs_type_list.current(0)
 
 	def add_reg_number_input(self):
@@ -225,28 +261,28 @@ class InputForm():
 		self._reg_number_input = Entry(self.window, text=None, justify=LEFT)
 
 		label.grid(row=2, column=0, sticky=W)
-		self._reg_number_input.grid(row=2, column=1, sticky=W)
+		self._reg_number_input.grid(row=2, column=1, sticky=NSEW)
 
 	def add_car_brand_input(self):
-		label = Label(self.window, text="Car brand", font=("Arial Bold", 12))
+		label = Label(self.window, text="Transport brand", font=("Arial Bold", 12))
 		self._car_brand_input = Entry(self.window, text=None, justify=LEFT)
 
 		label.grid(row=2, column=2, sticky=W)
-		self._car_brand_input.grid(row=2, column=3, sticky=W)
+		self._car_brand_input.grid(row=2, column=3, sticky=NSEW)
 
 	def add_car_model_input(self):
-		label = Label(self.window, text="Car model", font=("Arial Bold", 12))
+		label = Label(self.window, text="Transport model", font=("Arial Bold", 12))
 		self._car_model_input = Entry(self.window, text=None, justify=LEFT)
 
 		label.grid(row=3, column=0, sticky=W)
-		self._car_model_input.grid(row=3, column=1, sticky=W)
+		self._car_model_input.grid(row=3, column=1, sticky=NSEW)
 
 	def add_region_input(self):
 		label = Label(self.window, text="Region", font=("Arial Bold", 12))
 		self._region_input = Entry(self.window, text='RU', justify=LEFT)
 
 		label.grid(row=3, column=2, sticky=W)
-		self._region_input.grid(row=3, column=3, sticky=W)
+		self._region_input.grid(row=3, column=3, sticky=NSEW)
 
 	def add_check_box(self, row, column, window=None):
 		window = self.window if not window else window
@@ -273,8 +309,10 @@ class InputForm():
 
 	def get_data_from_input(self):
 		return {
-			'date': self._date_input.get(), 
-			'time': self._time_input.get(),
+			'start_date': self._start_date_input.get(),
+			'end_date': self._end_date_input.get(),
+			'start_time': self._start_time_input.get(),
+			'end_time': self._end_time_input.get(),
 			'auto_type': self._auto_type_list.get(),
 			'customs_type': self._customs_type_list.get(),
 			'reg_number': self._reg_number_input.get(),
@@ -294,8 +332,10 @@ class InputForm():
 			order = Order(
 				login='---', 
 				status='Waiting',
-				date=input_data['date'],
-				time=input_data['time'],
+				start_date=input_data['start_date'],
+				end_date=input_data['end_date'],
+				start_time=input_data['start_time'],
+				end_time=input_data['end_time'],
 				**file_data
 			)
 		else:	
