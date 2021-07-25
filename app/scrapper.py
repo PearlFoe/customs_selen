@@ -13,6 +13,7 @@ from requests.exceptions import SSLError
 
 from app import logger, config, accounts, proxies
 from app.notifier import TelegramNotifier
+from app.utils import add_order_to_list, remove_order_from_list
 
 import time
 import datetime
@@ -21,15 +22,18 @@ import os
 
 lock = threading.RLock()
 
+class TimeNotAvailableException():
+	pass
+
 class Scrapper(object):
 	"""docstring for Scrapper"""
 	def __init__(self, order):
 		self.driver = None
 		self.url = config['URL']
 		self.login_url = config['LOGIN_URL']
+		self.logout_url = config['LOGOUT_URL']
 		self.order = order
 		self.notifier = TelegramNotifier(login=self.order.login)
-
 
 	def get_proxy(self):
 		lock.acquire()
@@ -49,6 +53,13 @@ class Scrapper(object):
 			lock.release()
 		return account
 
+	def save_order_info(self, filename, account, date, time, customs):
+		lock.acquire()
+		try:
+			add_order_to_list(filename, account, date, time, customs)
+		finally:
+			lock.release()
+
 	def create_driver(self):
 		driver = None
 
@@ -58,7 +69,14 @@ class Scrapper(object):
 		if config['HEADLESS_MODE']:
 			options.add_argument("--headless")
 
-		proxy = self.get_proxy()
+		proxy = None
+		try:
+			proxy = self.get_proxy()
+		except StopIteration:
+			message = 'Got the end of proxy list.'
+			logger.warning(message)
+			self.notifier.send_message(message)
+			raise
 
 		seleniumwire_options = {
 			'proxy': {
@@ -67,13 +85,16 @@ class Scrapper(object):
 				'no_proxy': 'localhost,127.0.0.1'
 			}
 		}
-		driver = webdriver.Chrome('chromedriver.exe', service_log_path=os.path.devnull, options=options)#, seleniumwire_options=seleniumwire_options)
 
+		driver = None
 		try:
-			pass
-			#driver = webdriver.Chrome('chromedriver.exe', service_log_path=os.path.devnull, options=options)#, seleniumwire_options=seleniumwire_options)
+			if config['PROXY_MODE']:
+				driver = webdriver.Chrome(ChromeDriverManager().install(), service_log_path=os.path.devnull, options=options, seleniumwire_options=seleniumwire_options)
+			else:
+				driver = webdriver.Chrome(ChromeDriverManager().install(), service_log_path=os.path.devnull, options=options)
 		except SSLError:
 			logger.error('An SSLError occured during driver creation.')
+			raise
 		else:
 			logger.debug('Driver was created successfully.')
 			self.driver = driver
@@ -129,7 +150,7 @@ class Scrapper(object):
 		else:
 			logger.info('Successfully logged into account.')
 
-	def order_datetime(self, start_date, end_date, start_time, end_time, auto_type, customs_type, reg_number, brand, model, country):
+	def order_datetime(self, account, start_date, end_date, start_time, end_time, auto_type, customs_type, reg_number, brand, model, country):
 
 		def click_next(driver):
 			submit_btn = driver.find_element_by_xpath('//button[@id="next"]')
@@ -215,7 +236,6 @@ class Scrapper(object):
 			logger.warning('Failed to choose customs category.')
 			raise
 
-		###############################
 		time_interval = None
 		delta_days = end_date - start_date
 		delta_days = delta_days.days
@@ -225,7 +245,7 @@ class Scrapper(object):
 					'10-11', '11-12', '12-13', '13-14', '14-15', 
 					'15-16', '16-17', '17-18', '18-19', '19-20', 
 					'20-21', '21-22', '22-23', '23-00']
-
+		d = t = None
 		for _ in range(delta_days+1):
 			d = conver_date_to_str(start_date)
 			try:
@@ -252,14 +272,12 @@ class Scrapper(object):
 
 			start_date += datetime.timedelta(days=1)
 
-
 		if not time_interval:
 			message = "Date and time are not available."
 			logger.warning(message)
 			self.notifier.send_message(message)
-			raise NoSuchElementException
-
-		###############################
+			self.order.update_status('Time is not available')
+			raise TimeNotAvailableException
 
 		try:
 			time_interval.click()
@@ -323,9 +341,15 @@ class Scrapper(object):
 		else:
 			logger.info('Order was made successfully.')
 
-		#time out after making order
-		self.order.update_status('Ordered')
+		try:
+			self.save_order_info('orders.json', account, d, t, customs_type)
+		except Exception:
+			logger.warning('Exception occured trying to save order info.')
 
+		self.order.update_status('Ordered')
+		self.order.update_datetime(d, t)
+
+		#time out after making order
 		start_time = time.time()
 		while True:
 			if time.time() - start_time < config['TIME_OUT']:
@@ -362,7 +386,6 @@ class Scrapper(object):
 			logger.warning('Failed to click order cancel button.')
 			raise
 
-
 		confirm_btn = None
 		try:
 			confirm_btn = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
@@ -374,6 +397,23 @@ class Scrapper(object):
 		else:
 			logger.info('Order was canceled successfully.')
 
+		self.remove_order_from_list('orders.json', account)
+
+	def cancel_all_orders(self):
+		for i in get_order_list('orders.json'):
+			self.login(i['account'])
+			self.cancel_order()
+			self.logout()
+
+	def logout(self):
+		try:
+			self.open_url(self.logout_url)
+		except Exception:
+			logger.error('An error occured trying to log out.')
+			raise
+		else:
+			logger.info('Logged out successfully.')
+
 	def close_driver(self):
 		try:
 			self.driver.quit()
@@ -383,7 +423,12 @@ class Scrapper(object):
 			logger.info('Driver was successfully closed.')
 
 	def run(self):
-		self.create_driver()
+		try:
+			self.create_driver()
+		except Exception:
+			return
+
+		new_account = None
 		while True:
 			try:
 				new_account = self.get_account()
@@ -397,13 +442,24 @@ class Scrapper(object):
 				self.close_driver()
 				return
 			except (TimeoutException, NoSuchElementException) as e:
-				#self.notifier.send_message('Got an error trying to login.')
 				self.order.update_status('Login failed')
-
+			except TimeNotAvailableException:
+				if not config['MODE']:
+					self.logout()
+					self.cancel_all_orders()
+				else:
+					self.logout()
+					self.close_driver()
+					return
+		try:
+			self.cancel_order()
+		except Exception:
+			pass
 
 		self.order.update_status('Making order')
 		try:
 			self.order_datetime(
+					new_account,
 					self.order.start_date, 
 					self.order.end_date, 
 					self.order.start_time,
@@ -416,9 +472,9 @@ class Scrapper(object):
 					self.order.region,
 			)
 		except Exception:
+			self.logout()
 			self.close_driver()
 			return
 
-		time.sleep(3)
-		self.cancel_order()
+		self.logout()
 		self.close_driver()

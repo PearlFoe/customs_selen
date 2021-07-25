@@ -9,7 +9,7 @@ class Runner(object):
 	"""docstring for Runner"""
 	def __init__(self, orders=None):
 		self.orders = orders
-		self.threads_quantity = config['THREADS_QUANTITY']
+		self.threads_quantity = config['THREADS_QUANTITY'] if not config['MODE'] else 1
 		self.scrapper = None
 		self.executor = None
 		self.scrapper = None

@@ -92,9 +92,10 @@ class Order():
 		self.window = window
 		self.login = StringVar(value=login)
 		self.start_date = start_date
-		self.end_date = end_date
+		self.end_date = end_date		
 		self.start_time = start_time
 		self.end_time = end_time
+		self.ordered_datetime = StringVar()
 		self.time_to_wait = StringVar(value=f"Time left:\n{config['TIME_OUT']}")
 		self.status = StringVar(value=status)
 		self.auto_type = auto_type
@@ -123,7 +124,8 @@ class Order():
 
 	def add_datetime(self):
 		text = f'Date: {self.start_date} - {self.end_date}\nTime: {self.start_time} - {self.end_time}'
-		label = Label(self.window, text=text, font=("Arial Bold", 12))
+		self.ordered_datetime.set(text)
+		label = Label(self.window, textvariable=self.ordered_datetime, font=("Arial Bold", 12))
 		label.grid(column=self.__location['datetime'], row=0, rowspan=2, sticky=W)
 
 	def add_time_to_wait(self):
@@ -143,6 +145,10 @@ class Order():
 	def update_time_to_wait(self, time_left):
 		s = f"Time left:\n{time_left}"
 		self.time_to_wait.set(s)
+
+	def update_datetime(self, date, time):
+		text = f'Date: {date}\nTime: {time}'
+		self.ordered_datetime.set(text)
 
 class InputForm():
 	"""docstring for InputForm"""
@@ -336,6 +342,8 @@ class InputForm():
 				end_date=input_data['end_date'],
 				start_time=input_data['start_time'],
 				end_time=input_data['end_time'],
+				auto_type=input_data['auto_type'],
+				customs_type=input_data['customs_type'],
 				**file_data
 			)
 		else:	

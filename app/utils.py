@@ -45,3 +45,49 @@ def get_order_data(file_name):
 		data = json.loads(f.read())
 
 	return data
+
+def get_order_list(file_name):
+	data = None
+	try:
+		with open(file_name, encoding='utf-8') as f:
+			data = json.loads(f.read())
+	except FileNotFoundError:
+		return []
+	else:
+		return data
+
+def add_order_to_list(file_name, account, date, time, customs):
+	list_ = get_order_list(file_name)
+	usernames = [i['account']['username'] for i in list_]
+
+	if account['username'] in usernames:
+		for i in list_:
+			if account['username'] == i['account']['username']:
+				i['date'] = date
+				i['time'] = time
+				i['customs'] = customs
+	else:
+		order = {
+			"account": {
+				"username": account['username'],
+				"password": account['password']
+			},
+			"date": date,
+			"time": time,
+			"customs": customs
+		}
+		list_.append(order)
+
+	with open(file_name, 'w', encoding='utf-8') as f:
+		json.dump(list_, f, ensure_ascii=False)
+
+def remove_order_from_list(file_name, account):
+	list_ = get_order_list(file_name)
+
+	for i in list_:
+		if account['username'] == i['account']['login']:
+			list_.remove(i)
+			break
+
+	with open(file_name, 'w', encoding='utf-8') as f:
+		json.dump(list_, f, ensure_ascii=False)

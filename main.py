@@ -6,7 +6,9 @@ from app.UI import Vier
 def main():
 	global runner
 	global vier
-	#threading.Thread(target=self.runner.start(), name='Thread_Runner')
+
+	os.environ['WDM_LOG_LEVEL'] = '0'
+	os.environ['WDM_PRINT_FIRST_LINE'] = 'False'
 
 	runner = Runner()
 	vier = Vier(runner=runner)
