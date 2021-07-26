@@ -13,7 +13,7 @@ from requests.exceptions import SSLError
 
 from app import logger, config, accounts, proxies
 from app.notifier import TelegramNotifier
-from app.utils import add_order_to_list, remove_order_from_list
+from app.utils import add_order_to_list, remove_order_from_list, get_order_list
 
 import time
 import datetime
@@ -22,7 +22,7 @@ import os
 
 lock = threading.RLock()
 
-class TimeNotAvailableException():
+class TimeNotAvailableException(Exception):
 	pass
 
 class Scrapper(object):
@@ -64,6 +64,7 @@ class Scrapper(object):
 		driver = None
 
 		options = Options()
+		options.add_experimental_option('prefs', {"profile.managed_default_content_settings.images": 2}) #disables pictures loading
 		options.add_experimental_option('excludeSwitches', ['enable-logging']) #disables webdriver loggs
 		
 		if config['HEADLESS_MODE']:
@@ -78,10 +79,11 @@ class Scrapper(object):
 			self.notifier.send_message(message)
 			raise
 
+		ip, port, login, password = proxy.split(':')
 		seleniumwire_options = {
 			'proxy': {
-				'http': f'http://{proxy}', 
-				'https': f'https://{proxy}',
+				'http': f'http://{login}:{password}@{ip}:{port}', 
+				'https': f'https://{login}:{password}@{ip}:{port}',
 				'no_proxy': 'localhost,127.0.0.1'
 			}
 		}
@@ -397,13 +399,22 @@ class Scrapper(object):
 		else:
 			logger.info('Order was canceled successfully.')
 
-		self.remove_order_from_list('orders.json', account)
+		remove_order_from_list('orders.json', account)
 
 	def cancel_all_orders(self):
 		for i in get_order_list('orders.json'):
-			self.login(i['account'])
-			self.cancel_order()
-			self.logout()
+			try:
+				self.login(i['account'])
+			except Exception:
+				logger.warning('Exception in logging')
+			try:
+				self.cancel_order()
+			except Exception:
+				logger.warning('Exception in canceling')
+			try:
+				self.logout()	
+			except Exception:
+				logger.warning('Exception in logout')	
 
 	def logout(self):
 		try:
@@ -431,7 +442,17 @@ class Scrapper(object):
 		new_account = None
 		while True:
 			try:
+				new_account = None
+				accounts_with_order = [i['account']['username'] for i in get_order_list('orders.json')]
 				new_account = self.get_account()
+
+				while True:
+					if new_account['username'] in accounts_with_order:
+						logger.warning(f'Account {new_account["username"]} already has active order.')
+						new_account = self.get_account()
+					else:
+						break
+
 				self.order.update_login(new_account['username'])
 				self.order.update_status('Logging in')
 				self.login(new_account)
@@ -443,18 +464,6 @@ class Scrapper(object):
 				return
 			except (TimeoutException, NoSuchElementException) as e:
 				self.order.update_status('Login failed')
-			except TimeNotAvailableException:
-				if not config['MODE']:
-					self.logout()
-					self.cancel_all_orders()
-				else:
-					self.logout()
-					self.close_driver()
-					return
-		try:
-			self.cancel_order()
-		except Exception:
-			pass
 
 		self.order.update_status('Making order')
 		try:
@@ -471,10 +480,21 @@ class Scrapper(object):
 					self.order.car_model, 
 					self.order.region,
 			)
-		except Exception:
+		except (TimeoutException, NoSuchElementException) as e:
+			self.order.update_status('Failed to make order.')
 			self.logout()
 			self.close_driver()
 			return
+		except TimeNotAvailableException:
+			if config['MODE']:
+				self.logout()
+				self.cancel_all_orders()
+				self.close_driver()
+				return
+			else:
+				self.logout()
+				self.close_driver()
+				return
 
 		self.logout()
 		self.close_driver()
