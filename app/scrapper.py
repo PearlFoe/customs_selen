@@ -79,11 +79,10 @@ class Scrapper(object):
 			self.notifier.send_message(message)
 			raise
 
-		ip, port, login, password = proxy.split(':')
 		seleniumwire_options = {
 			'proxy': {
-				'http': f'http://{login}:{password}@{ip}:{port}', 
-				'https': f'https://{login}:{password}@{ip}:{port}',
+				'http': f'http://{proxy}', 
+				'https': f'https://{proxy}',
 				'no_proxy': 'localhost,127.0.0.1'
 			}
 		}
