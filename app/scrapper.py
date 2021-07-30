@@ -71,21 +71,28 @@ class Scrapper(object):
 			options.add_argument("--headless")
 
 		proxy = None
-		try:
-			proxy = self.get_proxy()
-		except StopIteration:
-			message = 'Got the end of proxy list.'
-			logger.warning(message)
-			self.notifier.send_message(message)
-			raise
+		seleniumwire_options = None
+		if config['PROXY_MODE']:
+			try:
+				proxy = self.get_proxy()
+			except StopIteration:
+				message = 'Got the end of proxy list.'
+				logger.warning(message)
+				self.notifier.send_message(message)
+				raise
 
-		seleniumwire_options = {
-			'proxy': {
-				'http': f'http://{proxy}', 
-				'https': f'https://{proxy}',
-				'no_proxy': 'localhost,127.0.0.1'
+			ip = proxy.split('@')[0].split(':')[0]
+			port = proxy.split('@')[0].split(':')[1]
+			login = proxy.split('@')[1].split(':')[0]
+			password = proxy.split('@')[1].split(':')[1]
+
+			seleniumwire_options = {
+				'proxy': {
+					'http': f'http://{login}:{password}@{ip}:{port}', 
+					'https': f'https://{login}:{password}@{ip}:{port}',
+					'no_proxy': 'localhost,127.0.0.1'
+				}
 			}
-		}
 
 		driver = None
 		try:
