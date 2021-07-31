@@ -5,7 +5,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
-from selenium import webdriver
+from seleniumwire import webdriver
 from urllib.parse import urljoin
 
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
@@ -13,7 +13,7 @@ from requests.exceptions import SSLError
 
 from app import logger, config, accounts, proxies
 from app.notifier import TelegramNotifier
-from app.utils import add_order_to_list, remove_order_from_list, get_order_list, dump_order_list
+from app.utils import add_order_to_list, remove_order_from_list, get_order_list
 
 import time
 import datetime
@@ -60,29 +60,12 @@ class Scrapper(object):
 		finally:
 			lock.release()
 
-	def get_accounts_with_order(self, file_name):
-		accounts = get_order_list(file_name)
-		
-		for account in accounts:
-			try:
-				if datetime.datetime.now() > datetime.datetime.strptime(account['datetime'] , '%Y-%m-%d %H'):
-					accounts.remove(account)
-					remove_order_from_list(file_name, account)
-			except KeyError:
-				dt = datetime.datetime.now() + datetime.timedelta(days=3)
-				account['datetime'] = dt.strftime('%Y-%m-%d %H')
-
-		dump_order_list(file_name, accounts)
-
-		return [account['account']['username'] for account in accounts]
-
 	def create_driver(self):
 		driver = None
 
 		options = Options()
 		options.add_experimental_option('prefs', {"profile.managed_default_content_settings.images": 2}) #disables pictures loading
 		options.add_experimental_option('excludeSwitches', ['enable-logging']) #disables webdriver loggs
-		options.add_argument("--start-maximized")
 		
 		if config['HEADLESS_MODE']:
 			options.add_argument("--headless")
@@ -98,11 +81,25 @@ class Scrapper(object):
 				self.notifier.send_message(message)
 				raise
 
-			options.add_argument(f"--proxy-server={proxy}")
+			ip = proxy.split('@')[0].split(':')[0]
+			port = proxy.split('@')[0].split(':')[1]
+			login = proxy.split('@')[1].split(':')[0]
+			password = proxy.split('@')[1].split(':')[1]
+
+			seleniumwire_options = {
+				'proxy': {
+					'http': f'http://{login}:{password}@{ip}:{port}', 
+					'https': f'https://{login}:{password}@{ip}:{port}',
+					'no_proxy': 'localhost,127.0.0.1'
+				}
+			}
 
 		driver = None
 		try:
-			driver = webdriver.Chrome(ChromeDriverManager().install(), service_log_path=os.path.devnull, options=options)
+			if config['PROXY_MODE']:
+				driver = webdriver.Chrome(ChromeDriverManager().install(), service_log_path=os.path.devnull, options=options, seleniumwire_options=seleniumwire_options)
+			else:
+				driver = webdriver.Chrome(ChromeDriverManager().install(), service_log_path=os.path.devnull, options=options)
 		except SSLError:
 			logger.error('An SSLError occured during driver creation.')
 			raise
@@ -152,7 +149,7 @@ class Scrapper(object):
 		#add check for banned accounts
 		try:
 			_ = WebDriverWait(self.driver, 3).until(EC.presence_of_element_located(
-													(By.XPATH, '//button[text()="Выйти"]')))
+													(By.XPATH, '//li[@id="liLogin"]')))
 		except TimeoutException:
 			message = f'Account {username}:{password} is banned.'
 			logger.warning(message)
@@ -195,10 +192,17 @@ class Scrapper(object):
 			'Легковой/пассажирский микроавтобус',
 			'Мотоцикл'
 		]
-
+		'''
+		category:
+		1 - легковой автомобиль
+		2 - грузовой автомобиль
+		3 - автобус
+		4 - микроавтобус
+		5 - мотоцикл
+		'''
 		try:
 			transport = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
-													(By.XPATH, f'//div[@id="category"]//span[contains(text(),"{auto_type}")]')))
+													(By.XPATH, f'//div[@id="category"]/div[{transport_category.index(auto_type)+1}]')))
 		except TimeoutException:
 			logger.warning('Failed to find transport category button.')
 			raise
@@ -218,10 +222,17 @@ class Scrapper(object):
 			'Котловка',
 			'Григоровщина'
 		]
-
+		'''
+		category:
+		1 - Брест
+		2 - Урбаны
+		3 - Брузги
+		4 - Котловка
+		5 - Григоровщина
+		'''
 		try:
 			customs = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
-													(By.XPATH, f'//div[@id="category"]//span[contains(text(),"{customs_type}")]')))
+													(By.XPATH, f'//div[@id="category"]/div[{customs_category.index(customs_type)+1}]')))
 		except TimeoutException:
 			logger.warning('Failed to find customs category button.')
 			raise
@@ -250,8 +261,6 @@ class Scrapper(object):
 			except Exception:
 				logger.warning(f'Failed to choose date {d}.')
 				raise
-
-			self.driver.execute_script("window.scrollTo(0, 350)") 
 
 			try:
 				_ = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
@@ -351,9 +360,9 @@ class Scrapper(object):
 		#time out after making order
 		start_time = time.time()
 		while True:
-			if time.time() - start_time < config['TIME_OUT'] * 60:
-				self.order.update_time_to_wait(int((config['TIME_OUT']*60 - (time.time() - start_time))/60))
-				time.sleep(60)
+			if time.time() - start_time < config['TIME_OUT']:
+				time.sleep(1)
+				self.order.update_time_to_wait(int(config['TIME_OUT'] - (time.time() - start_time)))
 			else:
 				self.order.update_time_to_wait(0)
 				break
@@ -433,16 +442,14 @@ class Scrapper(object):
 	def run(self):
 		try:
 			self.create_driver()
-		except Exception as e:
-			logger.warning('An error occured during driver creation.')
+		except Exception:
 			return
-
 
 		new_account = None
 		while True:
 			try:
 				new_account = None
-				accounts_with_order = self.get_accounts_with_order('orders.json')
+				accounts_with_order = [i['account']['username'] for i in get_order_list('orders.json')]
 				new_account = self.get_account()
 
 				while True:
@@ -497,3 +504,44 @@ class Scrapper(object):
 
 		self.logout()
 		self.close_driver()
+
+class Order():
+	def __init__(self, login, status, start_date, end_date, start_time, end_time, auto_type, customs_type, 
+					reg_number, car_brand, car_model, region, window=None):
+		self.window = window
+		self.login = None
+		self.start_date = start_date
+		self.end_date = end_date		
+		self.start_time = start_time
+		self.end_time = end_time
+		self.ordered_datetime = None
+		self.time_to_wait = None
+		self.status = None
+		self.auto_type = auto_type
+		self.customs_type = customs_type
+		self.reg_number = reg_number
+		self.car_brand = car_brand
+		self.car_model = car_model
+		self.region = region
+
+def main():
+	order = Order(
+		login = 'Ruslllan', 
+		status = 'status', 
+		start_date = '01.08.2021', 
+		end_date = '01.08.2021',
+		start_time = '01-02', 
+		end_time = '23-00', 
+		auto_type = 'Легковой автомобиль', 
+		customs_type = 'Брест', 
+		reg_number = 'ek074mr', 
+		car_brand = 'Mazda', 
+		car_model = '3', 
+		region = 'RU'
+	)
+
+	scr = Scrapper(order=order)
+	scr.run()
+
+if __name__ == '__main__':
+	main()

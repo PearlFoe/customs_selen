@@ -37,6 +37,7 @@ class Runner(object):
 			futures = []
 			for order in self.orders:
 				self.scrapper = Scrapper(order=order)
+				#self.scrapper.run()
 				futures.append(self.executor.submit(self.scrapper.run))
 
 	def stop(self):

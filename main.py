@@ -3,6 +3,7 @@ from app.runner import Runner
 from app.UI import Vier
 
 import os
+import sys
 import datetime
 
 @logger.catch
@@ -12,6 +13,7 @@ def main():
 
 	os.environ['WDM_LOG_LEVEL'] = '0'
 	os.environ['WDM_PRINT_FIRST_LINE'] = 'False'
+	sys.stdout.reconfigure(encoding='utf-8', errors='backslashreplace')
 
 	runner = Runner()
 	vier = Vier(runner=runner)

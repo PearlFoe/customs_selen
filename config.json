@@ -4,7 +4,7 @@
 	"LOGOUT_URL": "https://belarusborder.by/j_spring_security_logout",
 	"TIME_OUT":5,
 	"THREADS_QUANTITY":2,
-	"MODE":1,
+	"MODE":0,
 	"HEADLESS_MODE":0,
 	"PROXY_MODE":0,
 	"NOTIFY":0,

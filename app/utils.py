@@ -1,6 +1,7 @@
 from app import logger
 
 import json
+import datetime
 
 def get_config(file_name):
 	data = None
@@ -16,7 +17,7 @@ def get_config(file_name):
 def get_accounts(file_name):
 	data = []
 	try:
-		with open(file_name, encoding='Windows-1251') as f:
+		with open(file_name, encoding='utf-8') as f:
 			data = f.read().split('\n')
 	except FileNotFoundError:
 		logger.error(f'An error occured trying to ger accounts from file {file_name}.')
@@ -32,8 +33,11 @@ def get_accounts(file_name):
 
 def get_proxy(file_name):
 	data = None
-	with open(file_name) as f:
-		data = f.read().split('\n')
+	try:
+		with open(file_name) as f:
+			data = f.read().split('\n')
+	except Exception:
+		logger.warning('An error occured trying to get proxy from file.')
 
 	for proxy in data:
 		if proxy:
@@ -56,9 +60,21 @@ def get_order_list(file_name):
 	else:
 		return data
 
+def dump_order_list(file_name, list_):
+	try:
+		with open(file_name, 'w', encoding='utf-8') as f:
+			json.dump(list_, f, ensure_ascii=False)
+	except Exception:
+		logger.warning('Exception occured trying to dump order list.')
+
 def add_order_to_list(file_name, account, date, time, customs):
 	list_ = get_order_list(file_name)
 	usernames = [i['account']['username'] for i in list_]
+
+	if int(time.split("-")[1]) > 0:
+		dt = datetime.datetime.strptime(f'{date} {time.split("-")[1]}', '%d.%m.%Y %H')	
+	else: 
+		dt = datetime.datetime.strptime(f'{date} {time.split("-")[1]}', '%d.%m.%Y %H') + datetime.timedelta(days=1)
 
 	if account['username'] in usernames:
 		for i in list_:
@@ -66,6 +82,7 @@ def add_order_to_list(file_name, account, date, time, customs):
 				i['date'] = date
 				i['time'] = time
 				i['customs'] = customs
+				i['datetime'] = dt.strftime('%Y-%m-%d %H') 
 	else:
 		order = {
 			"account": {
@@ -74,12 +91,12 @@ def add_order_to_list(file_name, account, date, time, customs):
 			},
 			"date": date,
 			"time": time,
-			"customs": customs
+			"customs": customs,
+			"datetime": dt.strftime('%Y-%m-%d %H')
 		}
 		list_.append(order)
 
-	with open(file_name, 'w', encoding='utf-8') as f:
-		json.dump(list_, f, ensure_ascii=False)
+	dump_order_list(file_name, list_)
 
 def remove_order_from_list(file_name, account):
 	list_ = get_order_list(file_name)
@@ -89,5 +106,4 @@ def remove_order_from_list(file_name, account):
 			list_.remove(i)
 			break
 
-	with open(file_name, 'w', encoding='utf-8') as f:
-		json.dump(list_, f, ensure_ascii=False)
+	dump_order_list(file_name, list_)
