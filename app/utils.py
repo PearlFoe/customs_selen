@@ -17,12 +17,12 @@ def get_config(file_name):
 def get_accounts(file_name):
 	data = []
 	try:
-		with open(file_name, encoding='utf-8') as f:
+		with open(file_name, encoding='utf-8-sig') as f:
 			data = f.read().split('\n')
 	except FileNotFoundError:
 		logger.error(f'An error occured trying to ger accounts from file {file_name}.')
 	else:
-		logger.debug('Successfully gor accounts.')
+		logger.debug('Successfully got accounts.')
 
 		for account in data:
 			if account:
@@ -30,6 +30,20 @@ def get_accounts(file_name):
 					'username': account.split(':')[0],
 					'password':	account.split(':')[1]
 				}
+
+def get_auto_numbers(file_name):
+	data = []
+	try:
+		with open(file_name, encoding='utf-8') as f:
+			data = f.read().split('\n')
+	except FileNotFoundError:
+		logger.error(f'An error occured trying to get auto numbers from file {file_name}.')
+	else:
+		logger.debug('Successfully got auto numbers.')	
+
+		for num in data:
+			if num:
+				yield num
 
 def get_proxy(file_name):
 	data = None
@@ -67,14 +81,11 @@ def dump_order_list(file_name, list_):
 	except Exception:
 		logger.warning('Exception occured trying to dump order list.')
 
-def add_order_to_list(file_name, account, date, time, customs):
+def add_order_to_list(file_name, account, date, time, customs, time_to_add):
 	list_ = get_order_list(file_name)
 	usernames = [i['account']['username'] for i in list_]
 
-	if int(time.split("-")[1]) > 0:
-		dt = datetime.datetime.strptime(f'{date} {time.split("-")[1]}', '%d.%m.%Y %H')	
-	else: 
-		dt = datetime.datetime.strptime(f'{date} {time.split("-")[1]}', '%d.%m.%Y %H') + datetime.timedelta(days=1)
+	dt = datetime.datetime.now() + datetime.timedelta(minutes=time_to_add)
 
 	if account['username'] in usernames:
 		for i in list_:

@@ -2,12 +2,13 @@
 	"URL":"https://belarusborder.by/",
 	"LOGIN_URL": "https://belarusborder.by/login",
 	"LOGOUT_URL": "https://belarusborder.by/j_spring_security_logout",
-	"TIME_OUT":5,
-	"THREADS_QUANTITY":2,
+	"TIME_OUT":59,
+	"THREADS_QUANTITY":10,
 	"MODE":0,
 	"HEADLESS_MODE":0,
 	"PROXY_MODE":0,
 	"NOTIFY":0,
 	"TELEGRAM_USER_TO_NOTIFY":659797592,
-	"TELEGRAM_BOT_TOKEN":"1886974430:AAHxNXC8TBGVFsWOKb3Sciqphqt5fOtYRxg"
+	"TELEGRAM_BOT_TOKEN":"1886974430:AAHxNXC8TBGVFsWOKb3Sciqphqt5fOtYRxg",
+	"GET_AUTO_NUMBER_FROM_FILE": 1
 }

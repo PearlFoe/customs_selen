@@ -9,9 +9,9 @@ from selenium import webdriver
 from urllib.parse import urljoin
 
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from requests.exceptions import SSLError
+from requests.exceptions import SSLError, ProxyError
 
-from app import logger, config, accounts, proxies
+from app import logger, config, accounts, proxies, auto_numbers
 from app.notifier import TelegramNotifier
 from app.utils import add_order_to_list, remove_order_from_list, get_order_list, dump_order_list
 
@@ -53,10 +53,30 @@ class Scrapper(object):
 			lock.release()
 		return account
 
+	def get_auto_number(self):
+		lock.acquire()
+		auto_number = None
+		try:
+			auto_number = next(auto_numbers)
+		finally:
+			lock.release()
+		return auto_number
+
+	def wait_after_order_creation(self):
+		#time out after making order
+		start_time = time.time()
+		while True:
+			if time.time() - start_time < config['TIME_OUT'] * 60:
+				self.order.update_time_to_wait(int((config['TIME_OUT']*60 - (time.time() - start_time))/60))
+				time.sleep(60)
+			else:
+				self.order.update_time_to_wait(0)
+				break
+
 	def save_order_info(self, filename, account, date, time, customs):
 		lock.acquire()
 		try:
-			add_order_to_list(filename, account, date, time, customs)
+			add_order_to_list(filename, account, date, time, customs, config['TIME_OUT'])
 		finally:
 			lock.release()
 
@@ -69,7 +89,7 @@ class Scrapper(object):
 					accounts.remove(account)
 					remove_order_from_list(file_name, account)
 			except KeyError:
-				dt = datetime.datetime.now() + datetime.timedelta(days=3)
+				dt = datetime.datetime.now() + datetime.timedelta(hours=config['TIME_OUT'])
 				account['datetime'] = dt.strftime('%Y-%m-%d %H')
 
 		dump_order_list(file_name, accounts)
@@ -88,7 +108,6 @@ class Scrapper(object):
 			options.add_argument("--headless")
 
 		proxy = None
-		seleniumwire_options = None
 		if config['PROXY_MODE']:
 			try:
 				proxy = self.get_proxy()
@@ -242,6 +261,7 @@ class Scrapper(object):
 					'10-11', '11-12', '12-13', '13-14', '14-15', 
 					'15-16', '16-17', '17-18', '18-19', '19-20', 
 					'20-21', '21-22', '22-23', '23-00']
+
 		d = t = None
 		for _ in range(delta_days+1):
 			d = conver_date_to_str(start_date)
@@ -301,6 +321,10 @@ class Scrapper(object):
 
 		try:
 			reg_number_field.clear()
+
+			if config['GET_AUTO_NUMBER_FROM_FILE']:
+				reg_number = self.get_auto_number()
+
 			reg_number_field.send_keys(reg_number)
 			brand_field.clear()
 			brand_field.send_keys(brand)
@@ -319,14 +343,21 @@ class Scrapper(object):
 		#get email block
 		try:
 			actions = ActionChains(self.driver)
+
+			dont_recieve_email_btn = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+														(By.XPATH, '//div[2]/label[@class="category"]/span[@class="radio-custom"]')))
+			dont_recieve_email_btn.click()
+			time.sleep(0.3)
 			checkbox = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
-														(By.XPATH, f'//input[@id="agree"]')))
+														(By.XPATH, '//input[@id="agree"]')))
 			checkbox.click()
 
 			submit_btn = self.driver.find_elements_by_xpath('//button[@type="submit"]')[-1]
 			submit_btn.click()
 		except Exception:
-			logger.warning('Failed to confirm getting message on email.')
+			#logger.warning('Failed to confirm getting message on email.')
+			logger.warning('Failed to disable getting message on email.')
+
 			raise
 
 		confirm_payment_btn = None
@@ -347,16 +378,6 @@ class Scrapper(object):
 
 		self.order.update_status('Ordered')
 		self.order.update_datetime(d, t)
-
-		#time out after making order
-		start_time = time.time()
-		while True:
-			if time.time() - start_time < config['TIME_OUT'] * 60:
-				self.order.update_time_to_wait(int((config['TIME_OUT']*60 - (time.time() - start_time))/60))
-				time.sleep(60)
-			else:
-				self.order.update_time_to_wait(0)
-				break
 		
 	def cancel_order(self):
 		try:
@@ -431,69 +452,74 @@ class Scrapper(object):
 			logger.info('Driver was successfully closed.')
 
 	def run(self):
-		try:
-			self.create_driver()
-		except Exception as e:
-			logger.warning('An error occured during driver creation.')
-			return
-
-
-		new_account = None
-		while True:
+		for i in range(3):
 			try:
-				new_account = None
-				accounts_with_order = self.get_accounts_with_order('orders.json')
-				new_account = self.get_account()
-
-				while True:
-					if new_account['username'] in accounts_with_order:
-						logger.warning(f'Account {new_account["username"]} already has active order.')
-						new_account = self.get_account()
-					else:
-						break
-
-				self.order.update_login(new_account['username'])
-				self.order.update_status('Logging in')
-				self.login(new_account)
+				self.create_driver()
 				break
-			except StopIteration:
-				logger.warning('Got end of the accounts list.')
-				self.notifier.send_message('Got the end of accounts list.')
-				self.close_driver()
-				return
+			except Exception as e:
+				logger.warning(f'An error occured during driver creation. {e.args}')
+				if i >= 2:
+					return
+
+		while True:
+			new_account = None
+			while True:
+				try:
+					new_account = None
+					accounts_with_order = self.get_accounts_with_order('orders.json')
+					new_account = self.get_account()
+
+					while True:
+						if new_account['username'] in accounts_with_order:
+							logger.warning(f'Account {new_account["username"]} already has active order.')
+							new_account = self.get_account()
+						else:
+							break
+
+					self.order.update_login(new_account['username'])
+					self.order.update_status('Logging in')
+					self.login(new_account)
+					break
+				except StopIteration:
+					logger.warning('Got end of the accounts list.')
+					self.notifier.send_message('Got the end of accounts list.')
+					self.close_driver()
+					return
+				except (TimeoutException, NoSuchElementException) as e:
+					self.order.update_status('Login failed')
+
+			self.order.update_status('Making order')
+			try:
+				self.order_datetime(
+						new_account,
+						self.order.start_date, 
+						self.order.end_date, 
+						self.order.start_time,
+						self.order.end_time,
+						self.order.auto_type,
+						self.order.customs_type,
+						self.order.reg_number, 
+						self.order.car_brand, 
+						self.order.car_model, 
+						self.order.region,
+				)
 			except (TimeoutException, NoSuchElementException) as e:
-				self.order.update_status('Login failed')
+				self.order.update_status('Failed to make order.')
+				self.logout()
+				self.close_driver()
+				return
+			except TimeNotAvailableException:
+				if config['MODE']:
+					self.logout()
+					self.cancel_all_orders()
+					self.close_driver()
+					return
+				else:
+					self.logout()
+					self.close_driver()
+					return
 
-		self.order.update_status('Making order')
-		try:
-			self.order_datetime(
-					new_account,
-					self.order.start_date, 
-					self.order.end_date, 
-					self.order.start_time,
-					self.order.end_time,
-					self.order.auto_type,
-					self.order.customs_type,
-					self.order.reg_number, 
-					self.order.car_brand, 
-					self.order.car_model, 
-					self.order.region,
-			)
-		except (TimeoutException, NoSuchElementException) as e:
-			self.order.update_status('Failed to make order.')
 			self.logout()
-			self.close_driver()
-			return
-		except TimeNotAvailableException:
-			if config['MODE']:
-				self.logout()
-				self.cancel_all_orders()
-				self.close_driver()
-				return
-			else:
-				self.logout()
-				self.close_driver()
-				return
+			self.wait_after_order_creation()
 
-		self.logout()
 		self.close_driver()
