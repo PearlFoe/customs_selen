@@ -199,7 +199,7 @@ class Scrapper(object):
 		end_date = datetime.datetime.strptime(end_date, '%d.%m.%Y')
 
 		try:
-			self.open_url(urljoin(self.url, '/book'))
+			self.open_url(urljoin(self.url, '/book/new'))
 		except Exception:
 			logger.error('An error occured trying to open booking url.')
 			raise
@@ -424,15 +424,15 @@ class Scrapper(object):
 			try:
 				self.login(i['account'])
 			except Exception:
-				logger.warning('Exception in logging')
+				logger.warning('Exception in login into account while canseling orders.')
 			try:
 				self.cancel_order()
 			except Exception:
-				logger.warning('Exception in canceling')
+				logger.warning('Exception in canceling order.')
 			try:
 				self.logout()	
 			except Exception:
-				logger.warning('Exception in logout')	
+				logger.warning('Exception in login out while canseling orders.')	
 
 	def logout(self):
 		try:
@@ -480,44 +480,39 @@ class Scrapper(object):
 					self.order.update_status('Logging in')
 					self.login(new_account)
 					break
-				except StopIteration:
-					logger.warning('Got end of the accounts list.')
-					self.notifier.send_message('Got the end of accounts list.')
-					self.close_driver()
-					return
 				except (TimeoutException, NoSuchElementException) as e:
 					self.order.update_status('Login failed')
 
 			self.order.update_status('Making order')
-			try:
-				self.order_datetime(
-						new_account,
-						self.order.start_date, 
-						self.order.end_date, 
-						self.order.start_time,
-						self.order.end_time,
-						self.order.auto_type,
-						self.order.customs_type,
-						self.order.reg_number, 
-						self.order.car_brand, 
-						self.order.car_model, 
-						self.order.region,
-				)
-			except (TimeoutException, NoSuchElementException) as e:
-				self.order.update_status('Failed to make order.')
-				self.logout()
-				self.close_driver()
-				return
-			except TimeNotAvailableException:
-				if config['MODE']:
-					self.logout()
-					self.cancel_all_orders()
-					self.close_driver()
-					return
-				else:
+			while True:
+				try:
+					self.order_datetime(
+							new_account,
+							self.order.start_date, 
+							self.order.end_date, 
+							self.order.start_time,
+							self.order.end_time,
+							self.order.auto_type,
+							self.order.customs_type,
+							self.order.reg_number, 
+							self.order.car_brand, 
+							self.order.car_model, 
+							self.order.region,
+					)
+				except (TimeoutException, NoSuchElementException) as e:
+					self.order.update_status('Failed to make order.')
 					self.logout()
 					self.close_driver()
 					return
+				except TimeNotAvailableException:
+					if config['MODE']:
+						self.logout()
+						self.cancel_all_orders()
+						self.close_driver()
+						return
+					else:
+						self.order.update_status('Updating')
+						time.sleep(config['DELAY_BETWEEN_UPDATES'])
 
 			self.logout()
 			self.wait_after_order_creation()

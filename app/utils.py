@@ -23,13 +23,13 @@ def get_accounts(file_name):
 		logger.error(f'An error occured trying to ger accounts from file {file_name}.')
 	else:
 		logger.debug('Successfully got accounts.')
-
-		for account in data:
-			if account:
-				yield {
-					'username': account.split(':')[0],
-					'password':	account.split(':')[1]
-				}
+		while True:
+			for account in data:
+				if account:
+					yield {
+						'username': account.split(':')[0],
+						'password':	account.split(':')[1]
+					}
 
 def get_auto_numbers(file_name):
 	data = []
@@ -40,10 +40,10 @@ def get_auto_numbers(file_name):
 		logger.error(f'An error occured trying to get auto numbers from file {file_name}.')
 	else:
 		logger.debug('Successfully got auto numbers.')	
-
-		for num in data:
-			if num:
-				yield num
+		while True:
+			for num in data:
+				if num:
+					yield num
 
 def get_proxy(file_name):
 	data = None

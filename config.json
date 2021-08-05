@@ -3,6 +3,7 @@
 	"LOGIN_URL": "https://belarusborder.by/login",
 	"LOGOUT_URL": "https://belarusborder.by/j_spring_security_logout",
 	"TIME_OUT":59,
+	"DELAY_BETWEEN_UPDATES":5,
 	"THREADS_QUANTITY":10,
 	"MODE":0,
 	"HEADLESS_MODE":0,
