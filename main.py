@@ -20,8 +20,8 @@ def main():
 	vier.run()
 
 if __name__ == '__main__':
-	current_datetime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
-	finish_datetime = '2021-8-3 00:00'
+	current_datetime = datetime.datetime.now()
+	finish_datetime = datetime.datetime.strptime('2021-8-9 00:00', '%Y-%m-%d %H:%M')
 
 	if current_datetime < finish_datetime:
 		try:

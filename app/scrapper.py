@@ -262,48 +262,56 @@ class Scrapper(object):
 					'15-16', '16-17', '17-18', '18-19', '19-20', 
 					'20-21', '21-22', '22-23', '23-00']
 
-		d = t = None
-		for _ in range(delta_days+1):
-			d = conver_date_to_str(start_date)
-			try:
-				self.open_url(urljoin(self.url, f'/book/time?date={d}'))
-			except Exception:
-				logger.warning(f'Failed to choose date {d}.')
-				raise
+		while True:
+			c_start_date = start_date
+			d = t = None
+			for _ in range(delta_days+1):
+				d = conver_date_to_str(c_start_date)
+				try:
+					self.open_url(urljoin(self.url, f'/book/time?date={d}'))
+				except Exception:
+					logger.warning(f'Failed to choose date {d}.')
+					raise
 
-			self.driver.execute_script("window.scrollTo(0, 350)") 
+				self.driver.execute_script("window.scrollTo(0, 350)") 
 
-			try:
-				_ = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
-															(By.XPATH, '//div[@class="currentDatePanel"]')))
-			except TimeoutException:
-				message = "Page haven't loaded in time. Unnable to choose time."
+				try:
+					_ = WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(
+																(By.XPATH, '//div[@class="currentDatePanel"]')))
+				except TimeoutException:
+					message = "Page haven't loaded in time. Unnable to choose time."
+					logger.warning(message)
+					self.notifier.send_message(message)
+
+
+				for t in t_intervals[t_intervals.index(start_time):t_intervals.index(end_time)+1]:
+					try:
+						dt = d.replace('.','_') + '_' + t.split('-')[0]
+						time_interval = self.driver.find_element_by_xpath(f'//div[@data-interval="{dt}" and contains(@class, "intervalAvailable")]')
+					except NoSuchElementException:
+						pass
+
+				c_start_date += datetime.timedelta(days=1)
+
+			if not time_interval:
+				message = "Date and time are not available."
 				logger.warning(message)
 				self.notifier.send_message(message)
+				self.order.update_status('Time is not available')
+				if config['MODE']:
+					raise TimeNotAvailableException
+				else:
+					self.order.update_status('Updating')
+					time.sleep(config['DELAY_BETWEEN_UPDATES'])
+					continue
 
-
-			for t in t_intervals[t_intervals.index(start_time):t_intervals.index(end_time)+1]:
-				try:
-					dt = d.replace('.','_') + '_' + t.split('-')[0]
-					time_interval = self.driver.find_element_by_xpath(f'//div[@data-interval="{dt}" and contains(@class, "intervalAvailable")]')
-				except NoSuchElementException:
-					pass
-
-			start_date += datetime.timedelta(days=1)
-
-		if not time_interval:
-			message = "Date and time are not available."
-			logger.warning(message)
-			self.notifier.send_message(message)
-			self.order.update_status('Time is not available')
-			raise TimeNotAvailableException
-
-		try:
-			time_interval.click()
-			click_next(self.driver)
-		except Exception:
-			logger.warning('Failed to choose date and time.')
-			raise
+			try:
+				time_interval.click()
+				click_next(self.driver)
+				break
+			except Exception:
+				logger.warning('Failed to choose date and time.')
+				raise
 
 		reg_number_field = None
 		brand_field = None
@@ -484,35 +492,34 @@ class Scrapper(object):
 					self.order.update_status('Login failed')
 
 			self.order.update_status('Making order')
-			while True:
-				try:
-					self.order_datetime(
-							new_account,
-							self.order.start_date, 
-							self.order.end_date, 
-							self.order.start_time,
-							self.order.end_time,
-							self.order.auto_type,
-							self.order.customs_type,
-							self.order.reg_number, 
-							self.order.car_brand, 
-							self.order.car_model, 
-							self.order.region,
-					)
-				except (TimeoutException, NoSuchElementException) as e:
-					self.order.update_status('Failed to make order.')
+			try:
+				self.order_datetime(
+						new_account,
+						self.order.start_date, 
+						self.order.end_date, 
+						self.order.start_time,
+						self.order.end_time,
+						self.order.auto_type,
+						self.order.customs_type,
+						self.order.reg_number, 
+						self.order.car_brand, 
+						self.order.car_model, 
+						self.order.region,
+				)
+			except (TimeoutException, NoSuchElementException) as e:
+				self.order.update_status('Failed to make order.')
+				self.logout()
+				self.close_driver()
+				return
+			except TimeNotAvailableException:
+				if config['MODE']:
 					self.logout()
+					self.cancel_all_orders()
 					self.close_driver()
 					return
-				except TimeNotAvailableException:
-					if config['MODE']:
-						self.logout()
-						self.cancel_all_orders()
-						self.close_driver()
-						return
-					else:
-						self.order.update_status('Updating')
-						time.sleep(config['DELAY_BETWEEN_UPDATES'])
+				else:
+					self.order.update_status('Updating')
+					time.sleep(config['DELAY_BETWEEN_UPDATES'])
 
 			self.logout()
 			self.wait_after_order_creation()
