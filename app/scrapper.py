@@ -25,6 +25,9 @@ lock = threading.RLock()
 class TimeNotAvailableException(Exception):
 	pass
 
+class LoginException(Exception):
+	pass
+
 class Scrapper(object):
 	"""docstring for Scrapper"""
 	def __init__(self, order):
@@ -129,6 +132,16 @@ class Scrapper(object):
 			logger.debug('Driver was created successfully.')
 			self.driver = driver
 
+	def get_new_driver(self):
+		for i in range(3):
+			try:
+				self.create_driver()
+				break
+			except Exception as e:
+				logger.warning(f'An error occured during driver creation. {e.args}')
+				if i >= 2:
+					raise
+
 	def open_url(self, url):
 		try:
 			self.driver.get(url)
@@ -158,7 +171,7 @@ class Scrapper(object):
 			submit_btn = self.driver.find_element_by_xpath('//button[@id="loginBtn"]')
 		except TimeoutException:
 			logger.warning('Log in field was not found in time.')
-			raise
+			raise LoginException
 
 		try:
 			user_name_filed.send_keys(username)
@@ -460,14 +473,10 @@ class Scrapper(object):
 			logger.info('Driver was successfully closed.')
 
 	def run(self):
-		for i in range(3):
-			try:
-				self.create_driver()
-				break
-			except Exception as e:
-				logger.warning(f'An error occured during driver creation. {e.args}')
-				if i >= 2:
-					return
+		try:
+			self.get_new_driver()
+		except Exception:
+			return
 
 		while True:
 			new_account = None
@@ -490,6 +499,15 @@ class Scrapper(object):
 					break
 				except (TimeoutException, NoSuchElementException) as e:
 					self.order.update_status('Login failed')
+				except LoginException:
+					self.order.update_status('Login failed')
+					self.close_driver()
+					time.sleep(1)
+					try:
+						self.get_new_driver()
+					except Exception:
+						return
+					continue
 
 			self.order.update_status('Making order')
 			try:
@@ -510,7 +528,13 @@ class Scrapper(object):
 				self.order.update_status('Failed to make order.')
 				self.logout()
 				self.close_driver()
-				return
+				time.sleep(1)
+				try:
+					self.get_new_driver()
+				except Exception:
+					return
+				continue
+
 			except TimeNotAvailableException:
 				if config['MODE']:
 					self.logout()
