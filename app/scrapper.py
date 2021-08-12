@@ -17,6 +17,8 @@ from app.utils import add_order_to_list, remove_order_from_list, get_order_list,
 
 import time
 import datetime
+import random
+import psutil
 import threading
 import os
 
@@ -466,9 +468,15 @@ class Scrapper(object):
 
 	def close_driver(self):
 		try:
-			self.driver.quit()
-		except Exception:
-			logger.warning('An error occured during driver closing.')
+			p = psutil.Process(self.driver.service.process.pid)
+			for i in p.children(recursive=True):
+				try:
+					i.kill()
+				except Exception:
+					pass
+			p.kill()
+		except Exception as e:
+			logger.warning(f'An error occured during driver closing. {e.args}')
 		else:
 			logger.info('Driver was successfully closed.')
 
@@ -499,7 +507,18 @@ class Scrapper(object):
 					break
 				except (TimeoutException, NoSuchElementException) as e:
 					self.order.update_status('Login failed')
+					continue
 				except LoginException:
+					self.order.update_status('Login failed')
+					self.close_driver()
+					time.sleep(1)
+					try:
+						self.get_new_driver()
+					except Exception:
+						return
+					continue
+				except Exception as e:
+					logger.warning(f'Uncatched exception during login. {e.args}')
 					self.order.update_status('Login failed')
 					self.close_driver()
 					time.sleep(1)
@@ -534,7 +553,6 @@ class Scrapper(object):
 				except Exception:
 					return
 				continue
-
 			except TimeNotAvailableException:
 				if config['MODE']:
 					self.logout()
@@ -544,6 +562,16 @@ class Scrapper(object):
 				else:
 					self.order.update_status('Updating')
 					time.sleep(config['DELAY_BETWEEN_UPDATES'])
+			except Exception as e:
+				logger.warning(f'Uncatched exception during making order. {e.args}')
+				self.order.update_status('Failed to make order.')
+				self.close_driver()
+				time.sleep(1)
+				try:
+					self.get_new_driver()
+				except Exception:
+					return
+				continue
 
 			self.logout()
 			self.wait_after_order_creation()

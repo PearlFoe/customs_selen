@@ -10,42 +10,27 @@ class Runner(object):
 	def __init__(self, orders=None):
 		self.orders = orders
 		self.threads_quantity = config['THREADS_QUANTITY'] if not config['MODE'] else 1
-		self.scrapper = None
-		self.executor = None
-		self.scrapper = None
 		self.executor = ThreadPoolExecutor(max_workers=self.threads_quantity, thread_name_prefix='Tread')
-		self.scrapper = [] if self.threads_quantity > 1 else None
+		self.scrapper = []
 
 	def run_scrapper(self, order):
 		scr = Scrapper(order=order)
 		self.scrapper.append(scr)
 		scr.run()
 
+
 	def start(self):
 		if len(self.orders) < self.threads_quantity:
 	 		self.threads_quantity = len(self.orders)
 
-		if self.threads_quantity > 1:
-			futures = []
-			for order in self.orders:
-				futures.append(self.executor.submit(self.run_scrapper, order))
-			'''
-			for i in futures:
-				i.result()
-			'''
-		else:
-			futures = []
-			for order in self.orders:
-				self.scrapper = Scrapper(order=order)
-				#self.scrapper.run()
-				futures.append(self.executor.submit(self.scrapper.run))
+		futures = []
+		for order in self.orders:
+			futures.append(self.executor.submit(self.run_scrapper, order))
 
 	def stop(self):
-		if self.threads_quantity > 1:
-			self.executor.shutdown(wait=False)
-			self.executor._threads.clear()
-			concurrent.futures.thread._threads_queues.clear()
-			for scr in self.scrapper:
-				scr.close_driver()
-		else:
-			self.scrapper.close_driver()
+		self.executor.shutdown(wait=False)
+		self.executor._threads.clear()
+		concurrent.futures.thread._threads_queues.clear()
+
+		for scr in self.scrapper:
+			scr.close_driver()

@@ -5,13 +5,12 @@ from app import logger, config, accounts
 from app.utils import get_order_data
 
 import os
-import threading
 
 class Vier():
 	"""docstring for Vier"""
 	def __init__(self, runner):
 		self.window = Tk()
-		self.window.geometry('750x500')
+		self.window.geometry('700x500')
 		self.runner = runner
 
 	def run(self):
@@ -51,10 +50,15 @@ class Vier():
 
 		btns_frame.pack(side=TOP)
 
-		threading.Thread(target=self.window.mainloop(), name='Thread_Vier_Main_Loop', daemon=True)
+		self.window.protocol("WM_DELETE_WINDOW", self.quit)
+		try:
+			self.window.mainloop()
+		except KeyboardInterrupt:
+			self.quit()
 
 	def quit(self):
-		self.window.quit() 
+		self.runner.stop()
+		self.window.destroy() 
 
 class Header():
 	"""docstring for Header"""
@@ -189,13 +193,13 @@ class InputForm():
 		end_date.set('02.01.2021')
 		'''
 		self._date_input = Entry(self.window, text=date, justify=LEFT)
-		label = Label(self.window, text='Date', font=("Arial Bold", 12))
+		label = Label(self.window, text='Date', font=("Arial Bold", 10))
 
 		label.grid(row=0, column=0, sticky=W)
 		self._date_input.grid(row=0, column=1, sticky=W)
 		'''
 
-		label = Label(self.window, text='Date', font=("Arial Bold", 12))
+		label = Label(self.window, text='Date', font=("Arial Bold", 10))
 		date_input_frame = Frame(self.window)
 
 		self._start_date_input = Entry(date_input_frame, text=start_date, justify=LEFT)
@@ -214,12 +218,12 @@ class InputForm():
 		end_time.set('01-02')
 		'''
 		self._time_input = Entry(self.window, text=time, justify=LEFT)
-		label = Label(self.window, text='Time', font=("Arial Bold", 12))
+		label = Label(self.window, text='Time', font=("Arial Bold", 10))
 
 		label.grid(row=0, column=2, sticky=W)
 		self._time_input.grid(row=0, column=3, sticky=W)
 		'''
-		label = Label(self.window, text='Time', font=("Arial Bold", 12))
+		label = Label(self.window, text='Time', font=("Arial Bold", 10))
 		time_input_frame = Frame(self.window)
 
 		self._start_time_input = Entry(time_input_frame, text=start_time, justify=LEFT)
@@ -241,7 +245,7 @@ class InputForm():
 			'Мотоцикл'
 		]
 
-		label = Label(self.window, text="Transport type", font=("Arial Bold", 12))
+		label = Label(self.window, text="Transport type", font=("Arial Bold", 10))
 		self._auto_type_list = Combobox(self.window, values=items)
 		label.grid(row=1, column=0, sticky=W)
 		self._auto_type_list.grid(row=1, column=1, sticky=NSEW)
@@ -257,35 +261,35 @@ class InputForm():
 			'Григоровщина'
 		]
 
-		label = Label(self.window, text="Customs type", font=("Arial Bold", 12))
+		label = Label(self.window, text="Customs type", font=("Arial Bold", 10))
 		self._customs_type_list = Combobox(self.window, values=items)
 		label.grid(row=1, column=2, sticky=W)
 		self._customs_type_list.grid(row=1, column=3, sticky=NSEW)
 		self._customs_type_list.current(0)
 
 	def add_reg_number_input(self):
-		label = Label(self.window, text="Reg. number", font=("Arial Bold", 12))
+		label = Label(self.window, text="Reg. number", font=("Arial Bold", 10))
 		self._reg_number_input = Entry(self.window, text=None, justify=LEFT)
 
 		label.grid(row=2, column=0, sticky=W)
 		self._reg_number_input.grid(row=2, column=1, sticky=NSEW)
 
 	def add_car_brand_input(self):
-		label = Label(self.window, text="Transport brand", font=("Arial Bold", 12))
+		label = Label(self.window, text="Transport brand", font=("Arial Bold", 10))
 		self._car_brand_input = Entry(self.window, text=None, justify=LEFT)
 
 		label.grid(row=2, column=2, sticky=W)
 		self._car_brand_input.grid(row=2, column=3, sticky=NSEW)
 
 	def add_car_model_input(self):
-		label = Label(self.window, text="Transport model", font=("Arial Bold", 12))
+		label = Label(self.window, text="Transport model", font=("Arial Bold", 10))
 		self._car_model_input = Entry(self.window, text=None, justify=LEFT)
 
 		label.grid(row=3, column=0, sticky=W)
 		self._car_model_input.grid(row=3, column=1, sticky=NSEW)
 
 	def add_region_input(self):
-		label = Label(self.window, text="Region", font=("Arial Bold", 12))
+		label = Label(self.window, text="Region", font=("Arial Bold", 10))
 		self._region_input = Entry(self.window, text='RU', justify=LEFT)
 
 		label.grid(row=3, column=2, sticky=W)

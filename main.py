@@ -21,15 +21,10 @@ def main():
 
 if __name__ == '__main__':
 	current_datetime = datetime.datetime.now()
-	finish_datetime = datetime.datetime.strptime('2021-8-12 00:00', '%Y-%m-%d %H:%M')
+	finish_datetime = datetime.datetime.strptime('2021-8-14 00:00', '%Y-%m-%d %H:%M')
 
 	if current_datetime < finish_datetime:
-		try:
-			main()
-		except KeyboardInterrupt:
-			runner.stop()
-		finally:
-			vier.quit()
+		main()
 	else:
 		print('Срок пробного периода истек.')
 		_ = input()
