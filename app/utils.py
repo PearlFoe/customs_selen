@@ -53,9 +53,10 @@ def get_proxy(file_name):
 	except Exception:
 		logger.warning('An error occured trying to get proxy from file.')
 
-	for proxy in data:
-		if proxy:
-			yield proxy
+	while True:
+		for proxy in data:
+			if proxy:
+				yield proxy
 
 def get_order_data(file_name):
 	data = None
