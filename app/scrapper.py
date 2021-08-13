@@ -20,6 +20,7 @@ import datetime
 import random
 import psutil
 import threading
+import traceback
 import os
 
 lock = threading.RLock()
@@ -45,6 +46,8 @@ class Scrapper(object):
 		proxy = None
 		try:
 			proxy = next(proxies)
+		except Exception:
+			logger.warning('Exception occured trying to get new proxy from list.')
 		finally:
 			lock.release()
 		return proxy
@@ -54,6 +57,8 @@ class Scrapper(object):
 		account = None
 		try:
 			account = next(accounts)
+		except Exception:
+			logger.warning('Exception occured trying to get new account from list.')
 		finally:
 			lock.release()
 		return account
@@ -63,6 +68,8 @@ class Scrapper(object):
 		auto_number = None
 		try:
 			auto_number = next(auto_numbers)
+		except Exception:
+			logger.warning('Exception occured trying to get auto number from list.')
 		finally:
 			lock.release()
 		return auto_number
@@ -82,20 +89,25 @@ class Scrapper(object):
 		lock.acquire()
 		try:
 			add_order_to_list(filename, account, date, time, customs, config['TIME_OUT'])
+		except Exception:
+			logger.warning('Exception occured trying to add new order info to list.')
 		finally:
 			lock.release()
 
 	def get_accounts_with_order(self, file_name):
 		accounts = get_order_list(file_name)
 		
-		for account in accounts:
-			try:
-				if datetime.datetime.now() > datetime.datetime.strptime(account['datetime'] , '%Y-%m-%d %H'):
-					accounts.remove(account)
-					remove_order_from_list(file_name, account)
-			except KeyError:
-				dt = datetime.datetime.now() + datetime.timedelta(hours=config['TIME_OUT'])
-				account['datetime'] = dt.strftime('%Y-%m-%d %H')
+		try:
+			for account in accounts:
+				try:
+					if datetime.datetime.now() > datetime.datetime.strptime(account['datetime'] , '%Y-%m-%d %H'):
+						accounts.remove(account)
+						remove_order_from_list(file_name, account)
+				except KeyError:
+					dt = datetime.datetime.now() + datetime.timedelta(hours=config['TIME_OUT'])
+					account['datetime'] = dt.strftime('%Y-%m-%d %H')
+		except Exception:
+			logger.exception('An error occurred trying to get accounts with orders.')
 
 		dump_order_list(file_name, accounts)
 
@@ -108,7 +120,12 @@ class Scrapper(object):
 		options.add_experimental_option('prefs', {"profile.managed_default_content_settings.images": 2}) #disables pictures loading
 		options.add_experimental_option('excludeSwitches', ['enable-logging']) #disables webdriver loggs
 		options.add_argument("--start-maximized")
-		
+		'''
+		#Error: DevToolsActivePort file doesn't exist
+		#Fix:
+		options.add_argument("--remote-debugging-port=9222")
+		options.add_argument("--disable-dev-shm-using") 
+		'''
 		if config['HEADLESS_MODE']:
 			options.add_argument("--headless")
 
@@ -487,7 +504,6 @@ class Scrapper(object):
 			return
 
 		while True:
-			new_account = None
 			while True:
 				try:
 					new_account = None
@@ -518,7 +534,7 @@ class Scrapper(object):
 						return
 					continue
 				except Exception as e:
-					logger.warning(f'Uncatched exception during login. {e.args}')
+					logger.exception(f'Uncatched exception during login.')
 					self.order.update_status('Login failed')
 					self.close_driver()
 					time.sleep(1)
@@ -563,7 +579,7 @@ class Scrapper(object):
 					self.order.update_status('Updating')
 					time.sleep(config['DELAY_BETWEEN_UPDATES'])
 			except Exception as e:
-				logger.warning(f'Uncatched exception during making order. {e.args}')
+				logger.exception(f'Uncatched exception during making order.')
 				self.order.update_status('Failed to make order.')
 				self.close_driver()
 				time.sleep(1)

@@ -5,8 +5,8 @@ from app.utils import get_config, get_accounts, get_proxy, get_auto_numbers
 import sys
 
 logger.remove()
-logger.add(sys.stderr, format="<green>{time.hour}:{time.minute}:{time.second}:{time.microsecond}, {time.year}-{time.month}-{time.day}</green> - <lvl>{level}</lvl> - <c>{thread.name}</c> - <lvl>{message}</lvl>", level="INFO")
-logger.add('main_log_file.log', format="<green>{time.hour}:{time.minute}:{time.second}:{time.microsecond}, {time.year}-{time.month}-{time.day}</green> - <lvl>{level}</lvl> - <c>{thread.name}</c> - <lvl>{message}</lvl>", level="DEBUG")
+logger.add(sys.stderr, backtrace=False, diagnose=False, format="<green>{time.hour}:{time.minute}:{time.second}:{time.microsecond}, {time.year}-{time.month}-{time.day}</green> - <lvl>{level}</lvl> - <c>{thread.name}</c> - <lvl>{message}</lvl>", level="INFO")
+logger.add('main_log_file.log', backtrace=True, diagnose=True, format="<green>{time.hour}:{time.minute}:{time.second}:{time.microsecond}, {time.year}-{time.month}-{time.day}</green> - <lvl>{level}</lvl> - <c>{thread.name}</c> - <lvl>{message}</lvl>", level="DEBUG")
 
 logger = logger
 

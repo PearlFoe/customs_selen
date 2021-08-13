@@ -8,8 +8,8 @@ def get_config(file_name):
 	try:
 		with open(file_name) as f:
 			data = json.loads(f.read())
-	except FileNotFoundError:
-		logger.error(f'Failed to get config from file {file_name}.')
+	except Exception:
+		logger.exception(f'An error occurred trying to get config info from file {file_name}.')
 	else:
 		logger.debug('Successfully got config.')
 		return data
@@ -19,8 +19,8 @@ def get_accounts(file_name):
 	try:
 		with open(file_name, encoding='utf-8-sig') as f:
 			data = f.read().split('\n')
-	except FileNotFoundError:
-		logger.error(f'An error occured trying to ger accounts from file {file_name}.')
+	except Exception:
+		logger.exception(f'An error occurred trying to get accounts from file {file_name}.')
 	else:
 		logger.debug('Successfully got accounts.')
 		while True:
@@ -36,8 +36,8 @@ def get_auto_numbers(file_name):
 	try:
 		with open(file_name, encoding='utf-8') as f:
 			data = f.read().split('\n')
-	except FileNotFoundError:
-		logger.error(f'An error occured trying to get auto numbers from file {file_name}.')
+	except Exception:
+		logger.exception(f'An error occurred trying to get auto numbers from file {file_name}.')
 	else:
 		logger.debug('Successfully got auto numbers.')	
 		while True:
@@ -51,17 +51,21 @@ def get_proxy(file_name):
 		with open(file_name) as f:
 			data = f.read().split('\n')
 	except Exception:
-		logger.warning('An error occured trying to get proxy from file.')
-
-	while True:
-		for proxy in data:
-			if proxy:
-				yield proxy
+		logger.exception(f'An error occured trying to get proxy from file.')
+	else:
+		logger.debug('Successfully got proxy from file.')
+		while True:
+			for proxy in data:
+				if proxy:
+					yield proxy
 
 def get_order_data(file_name):
 	data = None
-	with open(file_name, encoding='utf-8') as f:
-		data = json.loads(f.read())
+	try:
+		with open(file_name, encoding='utf-8') as f:
+			data = json.loads(f.read())
+	except Exception:
+		logger.exception(f'An error occurred trying to get order data from file {file_name}.')
 
 	return data
 
@@ -72,15 +76,17 @@ def get_order_list(file_name):
 			data = json.loads(f.read())
 	except FileNotFoundError:
 		return []
+	except Exception:
+		logger.exception(f'An error occurred trying to get order list from file {file_name}.')
 	else:
-		return data
+		return data if data and len(data) > 0 else []
 
 def dump_order_list(file_name, list_):
 	try:
 		with open(file_name, 'w', encoding='utf-8') as f:
 			json.dump(list_, f, ensure_ascii=False)
 	except Exception:
-		logger.warning('Exception occured trying to dump order list.')
+		logger.exception('Exception occured trying to dump order list.')
 
 def add_order_to_list(file_name, account, date, time, customs, time_to_add):
 	list_ = get_order_list(file_name)
@@ -113,6 +119,9 @@ def add_order_to_list(file_name, account, date, time, customs, time_to_add):
 def remove_order_from_list(file_name, account):
 	list_ = get_order_list(file_name)
 
+	if len(list_) == 0:
+		return
+		
 	for i in list_:
 		if account['username'] == i['account']['login']:
 			list_.remove(i)

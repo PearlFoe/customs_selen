@@ -18,7 +18,6 @@ class Runner(object):
 		self.scrapper.append(scr)
 		scr.run()
 
-
 	def start(self):
 		if len(self.orders) < self.threads_quantity:
 	 		self.threads_quantity = len(self.orders)
