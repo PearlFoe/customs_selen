@@ -1,5 +1,7 @@
 from app import logger
 
+from json.decoder import JSONDecodeError
+
 import json
 import datetime
 
@@ -76,12 +78,17 @@ def get_order_list(file_name):
 			data = json.loads(f.read())
 	except FileNotFoundError:
 		return []
+	except JSONDecodeError:
+		return []
 	except Exception:
-		logger.exception(f'An error occurred trying to get order list from file {file_name}.')
-	else:
-		return data if data and len(data) > 0 else []
+		logger.warning(f'An error occurred trying to get order list from file {file_name}.')
+
+	return data if data and len(data) > 0 else []
 
 def dump_order_list(file_name, list_):
+	if not list_ or len(list_) == 0:
+		list_ = []
+
 	try:
 		with open(file_name, 'w', encoding='utf-8') as f:
 			json.dump(list_, f, ensure_ascii=False)
