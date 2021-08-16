@@ -85,6 +85,18 @@ class Scrapper(object):
 				self.order.update_time_to_wait(0)
 				break
 
+	def get_active_orders(self, file_name):
+		lock.acquire()
+		accounts = None
+		try:
+			accounts = get_order_list(file_name)
+		except Exception:
+			logger.warning('Exception occured trying to get orders from list.')
+		finally:
+			lock.release()
+
+		return accounts
+
 	def save_order_info(self, filename, account, date, time, customs):
 		lock.acquire()
 		try:
@@ -94,22 +106,41 @@ class Scrapper(object):
 		finally:
 			lock.release()
 
+	def remove_unactive_order(self, file_name, account):
+		lock.acquire()
+		try:
+			remove_order_from_list(file_name, account)
+		except Exception:
+			logger.exception('Exception occured trying to remove unactive order.')
+			print(account)
+		finally:
+			lock.release()
+
+	def dump_active_orders(self, file_name, accounts):
+		lock.acquire()
+		try:
+			dump_order_list(file_name, accounts)
+		except Exception:
+			logger.warning('Exception occured trying to dump active orders.')
+		finally:
+			lock.release()
+
 	def get_accounts_with_order(self, file_name):
-		accounts = get_order_list(file_name)
+		accounts = self.get_active_orders(file_name)
 		
 		try:
 			for account in accounts:
 				try:
 					if datetime.datetime.now() > datetime.datetime.strptime(account['datetime'] , '%Y-%m-%d %H'):
 						accounts.remove(account)
-						remove_order_from_list(file_name, account)
+						self.remove_unactive_order(file_name, account)
 				except KeyError:
 					dt = datetime.datetime.now() + datetime.timedelta(hours=config['TIME_OUT'])
 					account['datetime'] = dt.strftime('%Y-%m-%d %H')
 		except Exception:
 			logger.exception('An error occurred trying to get accounts with orders.')
 
-		dump_order_list(file_name, accounts)
+		self.dump_active_orders(file_name, accounts)
 
 		return [account['account']['username'] for account in accounts]
 

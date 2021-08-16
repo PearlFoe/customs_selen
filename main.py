@@ -21,7 +21,7 @@ def main():
 
 if __name__ == '__main__':
 	current_datetime = datetime.datetime.now()
-	finish_datetime = datetime.datetime.strptime('2021-8-16 00:00', '%Y-%m-%d %H:%M')
+	finish_datetime = datetime.datetime.strptime('2021-8-20 00:00', '%Y-%m-%d %H:%M')
 
 	if current_datetime < finish_datetime:
 		main()

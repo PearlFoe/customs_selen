@@ -78,8 +78,6 @@ def get_order_list(file_name):
 			data = json.loads(f.read())
 	except FileNotFoundError:
 		return []
-	except JSONDecodeError:
-		return []
 	except Exception:
 		logger.warning(f'An error occurred trying to get order list from file {file_name}.')
 
@@ -130,7 +128,7 @@ def remove_order_from_list(file_name, account):
 		return
 		
 	for i in list_:
-		if account['username'] == i['account']['login']:
+		if account['account']['username'] == i['account']['username']:
 			list_.remove(i)
 			break
 
