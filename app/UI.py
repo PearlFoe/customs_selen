@@ -13,6 +13,7 @@ class Vier():
 		self.window.geometry('700x500')
 		self.runner = runner
 
+	@logger.catch
 	def run(self):
 		header = Frame(self.window)
 		Header(

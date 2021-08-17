@@ -17,7 +17,8 @@ class Runner(object):
 		scr = Scrapper(order=order)
 		self.scrapper.append(scr)
 		scr.run()
-
+		
+	@logger.catch
 	def start(self):
 		if len(self.orders) < self.threads_quantity:
 	 		self.threads_quantity = len(self.orders)

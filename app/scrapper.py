@@ -23,7 +23,13 @@ import threading
 import traceback
 import os
 
-lock = threading.RLock()
+get_proxy_lock = threading.RLock()
+get_account_lock = threading.RLock()
+get_auto_number_lock = threading.RLock()
+get_active_orders_lock = threading.RLock()
+save_order_info_lock = threading.RLock()
+remove_unactive_order_lock = threading.RLock()
+dump_active_orders_lock = threading.RLock()
 
 class TimeNotAvailableException(Exception):
 	pass
@@ -42,36 +48,36 @@ class Scrapper(object):
 		self.notifier = TelegramNotifier(login=self.order.login)
 
 	def get_proxy(self):
-		lock.acquire()
+		get_proxy_lock.acquire()
 		proxy = None
 		try:
 			proxy = next(proxies)
 		except Exception:
 			logger.warning('Exception occured trying to get new proxy from list.')
 		finally:
-			lock.release()
+			get_proxy_lock.release()
 		return proxy
 
 	def get_account(self):
-		lock.acquire()
+		get_account_lock.acquire()
 		account = None
 		try:
 			account = next(accounts)
 		except Exception:
 			logger.warning('Exception occured trying to get new account from list.')
 		finally:
-			lock.release()
+			get_account_lock.release()
 		return account
 
 	def get_auto_number(self):
-		lock.acquire()
+		get_auto_number_lock.acquire()
 		auto_number = None
 		try:
 			auto_number = next(auto_numbers)
 		except Exception:
 			logger.warning('Exception occured trying to get auto number from list.')
 		finally:
-			lock.release()
+			get_auto_number_lock.release()
 		return auto_number
 
 	def wait_after_order_creation(self):
@@ -86,44 +92,48 @@ class Scrapper(object):
 				break
 
 	def get_active_orders(self, file_name):
-		lock.acquire()
+		get_active_orders_lock.acquire()
 		accounts = None
 		try:
 			accounts = get_order_list(file_name)
 		except Exception:
 			logger.warning('Exception occured trying to get orders from list.')
+		else:
+			logger.debug('Got accounts with orders.')
 		finally:
-			lock.release()
+			get_active_orders_lock.release()
 
 		return accounts
 
 	def save_order_info(self, filename, account, date, time, customs):
-		lock.acquire()
+		save_order_info_lock.acquire()
 		try:
 			add_order_to_list(filename, account, date, time, customs, config['TIME_OUT'])
 		except Exception:
 			logger.warning('Exception occured trying to add new order info to list.')
 		finally:
-			lock.release()
+			save_order_info_lock.release()
 
 	def remove_unactive_order(self, file_name, account):
-		lock.acquire()
+		remove_unactive_order_lock.acquire()
 		try:
 			remove_order_from_list(file_name, account)
 		except Exception:
 			logger.exception('Exception occured trying to remove unactive order.')
 			print(account)
 		finally:
-			lock.release()
+			remove_unactive_order_lock.release()
 
 	def dump_active_orders(self, file_name, accounts):
-		lock.acquire()
+		dump_active_orders_lock.acquire()
 		try:
 			dump_order_list(file_name, accounts)
 		except Exception:
 			logger.warning('Exception occured trying to dump active orders.')
+		else:
+			logger.debug('Dumped accounts with active orders.')
 		finally:
-			lock.release()
+			dump_active_orders_lock.release()
 
 	def get_accounts_with_order(self, file_name):
 		accounts = self.get_active_orders(file_name)
@@ -142,6 +152,7 @@ class Scrapper(object):
 
 		self.dump_active_orders(file_name, accounts)
 
+		logger.debug('Got accounts with active orders.')
 		return [account['account']['username'] for account in accounts]
 
 	def create_driver(self):
@@ -527,7 +538,8 @@ class Scrapper(object):
 			logger.warning(f'An error occured during driver closing. {e.args}')
 		else:
 			logger.info('Driver was successfully closed.')
-
+	
+	@logger.catch
 	def run(self):
 		try:
 			self.get_new_driver()
@@ -546,6 +558,7 @@ class Scrapper(object):
 							logger.warning(f'Account {new_account["username"]} already has active order.')
 							new_account = self.get_account()
 						else:
+							logger.debug(f'Got new account {new_account["username"]}')
 							break
 
 					self.order.update_login(new_account['username'])
